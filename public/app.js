@@ -31,6 +31,7 @@ const isDate = requestedDay && /^\d{4}-\d{2}-\d{2}$/.test(requestedDay) &&
   Number.isFinite(+asDate(requestedDay)) && asKey(asDate(requestedDay)) === requestedDay;
 let selected = isDate ? requestedDay : today;
 let historyMonth = selected.slice(0, 7) + '-01';
+let historyWeek = monday(selected);
 let loaded = null;
 let daily = new Map();
 let loadVersion = 0;
@@ -81,6 +82,10 @@ function monday(date) {
   return shift(date, -((asDate(date).getUTCDay() + 6) % 7));
 }
 
+function weekRange(start) {
+  return shortDate.format(asDate(start)) + ' – ' + shortDate.format(asDate(shift(start, 6)));
+}
+
 function changeMonth(first, direction) {
   const date = asDate(first);
   date.setUTCMonth(date.getUTCMonth() + direction);
@@ -118,35 +123,46 @@ function drawHistory() {
   const month = historyMonth.slice(0, 7);
   const next = changeMonth(historyMonth, 1);
   $('month-title').textContent = capitalized(monthTitle.format(asDate(historyMonth)));
+  $('week-title').textContent = 'Semana ' + weekRange(historyWeek);
   let total = 0;
   for (const [date, day] of daily) {
     if (date.startsWith(month)) total += day.netCents;
   }
   showNet($('month-net'), total);
 
-  const sameMonth = container.dataset.month === month;
-  const openWeeks = new Set([...container.querySelectorAll('details[open]')].map(week => week.dataset.week));
-  const preferredDay = selected.startsWith(month) ? selected : shift(next, -1);
-  const preferredWeek = monday(preferredDay);
   const weeks = [];
   for (let start = monday(historyMonth); start < next; start = shift(start, 7)) {
     const week = $('history-week-template').content.firstElementChild.cloneNode(true);
     week.dataset.week = start;
-    week.open = (sameMonth && openWeeks.has(start)) ||
-      ((!sameMonth || container.dataset.selected !== selected) && start === preferredWeek);
+    week.open = start === historyWeek;
     const dates = Array.from({ length: 7 }, (_, index) => shift(start, index));
-    week.querySelector('.week-dates').textContent = shortDate.format(asDate(start)) + ' – ' + shortDate.format(asDate(dates[6]));
+    const range = weekRange(start);
+    week.querySelector('.week-dates').textContent = range;
+    week.addEventListener('toggle', () => {
+      if (week.open && week.isConnected) {
+        historyWeek = start;
+        $('week-title').textContent = 'Semana ' + range;
+      }
+    });
     showNet(week.querySelector('.week-net'), dates.reduce((sum, date) => sum + (daily.get(date)?.netCents ?? 0), 0));
     week.querySelector('.history-days').append(...dates.map(date => historyDay(date, month)));
     weeks.push(week);
   }
-  container.dataset.month = month;
-  container.dataset.selected = selected;
   container.replaceChildren(...weeks);
 }
 
 function moveMonth(direction) {
   historyMonth = changeMonth(historyMonth, direction);
+  const preferred = selected.startsWith(historyMonth.slice(0, 7)) ? selected : shift(changeMonth(historyMonth, 1), -1);
+  historyWeek = monday(preferred);
+  drawHistory();
+}
+
+function moveWeek(direction) {
+  historyWeek = shift(historyWeek, direction * 7);
+  const end = shift(historyWeek, 6);
+  if (end < historyMonth) historyMonth = end.slice(0, 7) + '-01';
+  if (historyWeek >= changeMonth(historyMonth, 1)) historyMonth = historyWeek.slice(0, 7) + '-01';
   drawHistory();
 }
 
@@ -161,6 +177,13 @@ function empty(title, description) {
   $('empty-title').textContent = title;
   $('empty-copy').textContent = description;
   $('empty-sales').hidden = false;
+}
+
+function formatSaleTime(time) {
+  const [hour, minutes] = time.split(':');
+  if (!minutes) return time;
+  const hours = Number(hour);
+  return (hours % 12 || 12) + ':' + minutes + (hours < 12 ? ' a. m.' : ' p. m.');
 }
 
 function renderSummary(day) {
@@ -189,7 +212,7 @@ function renderSummary(day) {
     name.textContent = sale.course;
     const meta = document.createElement('span');
     meta.className = 'sale-meta';
-    meta.textContent = [sale.method, sale.time, sale.promotion ? 'Promoción' : ''].filter(Boolean).join(' · ');
+    meta.textContent = [sale.method, formatSaleTime(sale.time), sale.promotion ? 'Promoción' : ''].filter(Boolean).join(' · ');
     copy.append(name, meta);
     const amount = document.createElement('strong');
     amount.textContent = money(sale.cents);
@@ -299,23 +322,12 @@ function updatePush(message = '') {
 }
 
 async function initPush() {
-  if (push.started) return;
+  if (push.started || location.protocol !== 'https:' ||
+      !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
   push.started = true;
-  $('push-panel').hidden = false;
-  if (location.protocol !== 'https:') {
-    updatePush('Disponible en DigPro cuando publiques la app.');
-    return;
-  }
-  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-    updatePush('En iPhone, añade DigPro a la pantalla de inicio y ábrela desde su icono.');
-    return;
-  }
   try {
     const { publicKey } = await api('?action=push');
-    if (!publicKey) {
-      updatePush('El aviso de medianoche aún no está disponible.');
-      return;
-    }
+    if (!publicKey) return;
     await navigator.serviceWorker.register('/sw.js');
     const registration = await navigator.serviceWorker.ready;
     push.subscription = await registration.pushManager.getSubscription();
@@ -326,9 +338,9 @@ async function initPush() {
     push.publicKey = Uint8Array.from(atob(publicKey.replace(/-/g, '+').replace(/_/g, '/')), char => char.charCodeAt(0));
     push.registration = registration;
     updatePush();
+    $('push-panel').hidden = false;
   } catch {
     push.started = false;
-    updatePush('No se pudo consultar el aviso. Vuelve a cargar DigPro.');
   }
 }
 
@@ -418,11 +430,14 @@ $('next').addEventListener('click', () => selectDay(shift(selected, 1)));
 $('retry').addEventListener('click', () => selectDay(selected));
 $('open-calendar').addEventListener('click', () => {
   historyMonth = selected.slice(0, 7) + '-01';
+  historyWeek = monday(selected);
   drawHistory();
   $('calendar-dialog').showModal();
 });
 $('previous-month').addEventListener('click', () => moveMonth(-1));
 $('next-month').addEventListener('click', () => moveMonth(1));
+$('previous-week').addEventListener('click', () => moveWeek(-1));
+$('next-week').addEventListener('click', () => moveWeek(1));
 $('back-today').addEventListener('click', () => {
   $('calendar-dialog').close();
   selectDay(today);

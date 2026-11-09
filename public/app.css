@@ -107,6 +107,8 @@ legend, form label[for], .field-label { display: block; margin-bottom: 6px; colo
 .form-grid { margin-bottom: 12px; }
 form input:not([type="radio"], [type="checkbox"]) { width: 100%; min-width: 0; height: 44px; padding: 0 9px; border: 1px solid var(--line); border-radius: 11px; background: #faf9fd; font-size: 1rem; }
 .money-field { display: flex; align-items: center; height: 44px; border-radius: 11px; border: 1px solid var(--line); background: #faf9fd; }
+.money-field:focus-within { outline: 3px solid #8058d3; outline-offset: -3px; }
+.money-field input:focus { outline: none; }
 .money-field span { padding-left: 10px; color: var(--muted); font-weight: 700; }
 .money-field input:not([type]) { border: 0; height: 42px; background: none; }
 .promo { display: flex; align-items: center; justify-content: center; gap: 5px; height: 44px; color: #4c3300; background: #fff1af; border-color: #e7cd6b; font-size: .75rem; font-weight: 800; }
@@ -130,6 +132,8 @@ form input:not([type="radio"], [type="checkbox"]) { width: 100%; min-width: 0; h
 .history-intro { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 5px 2px; }
 .history-note { line-height: 1.4; }
 .history-intro .text-button { flex-shrink: 0; font-size: .83rem; }
+.week-nav { margin-bottom: 8px; }
+.week-nav h3 { font-size: .84rem; color: var(--purple); }
 .history-week + .history-week { margin-top: 8px; }
 .history-week summary { display: grid; grid-template-columns: minmax(0, 1fr) auto 16px; gap: 8px; align-items: center; min-height: 58px; padding: 10px 12px; cursor: pointer; list-style: none; }
 .history-week summary::-webkit-details-marker { display: none; }

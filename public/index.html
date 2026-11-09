@@ -125,6 +125,11 @@
       <p class="history-note">Las semanas van de lunes a domingo. Los totales descuentan la publicidad registrada.</p>
       <button type="button" id="back-today" class="text-button">Ir a hoy</button>
     </div>
+    <div class="month-nav week-nav" role="group" aria-label="Cambiar semana">
+      <button class="icon-button" type="button" id="previous-week" aria-label="Semana anterior"><svg aria-hidden="true"><use href="#i-left"/></svg></button>
+      <h3 id="week-title" aria-live="polite"></h3>
+      <button class="icon-button" type="button" id="next-week" aria-label="Semana siguiente"><svg aria-hidden="true"><use href="#i-right"/></svg></button>
+    </div>
     <div id="history-weeks"></div>
   </dialog>
 
