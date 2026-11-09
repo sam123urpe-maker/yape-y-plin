@@ -29,10 +29,10 @@ Si el paso 3 devuelve `SERVICE_DISABLED`, habilita [Google Sheets API en el proy
 1. Confirma primero que `npm.cmd run setup` termina correctamente.
 2. Importa el proyecto en Vercel con el preset **Other** y Node.js **24.x**. `vercel.json` indica que los archivos de la interfaz están en `public`. Vercel ejecuta `api/caja.mjs` como función Node.js.
 3. En **Settings → Environment Variables**, crea `GOOGLE_SERVICE_ACCOUNT_JSON` con el contenido íntegro del archivo de credenciales. Marca la variable como sensible. Conserva el archivo original en tu computadora y fuera del código que subas.
-4. Crea `APP_PASSWORD` con una clave larga y aleatoria de al menos 12 caracteres. Esa será la clave que te pedirá la app en el celular.
+4. `APP_PASSWORD` es opcional. Para entrar directamente, deja esa variable sin configurar. Si quieres pedir una clave, configura una de al menos 12 caracteres.
 5. Abre el archivo local `.env.push.local` y copia **PUSH_PUBLIC_KEY**, **PUSH_PRIVATE_KEY** y **CRON_SECRET** a las variables de entorno de **Production**. Marca la clave privada y el secreto del cron como sensibles. Si el archivo aún no existe, créalo con `npm.cmd run push:keys`. Conserva las mismas claves en futuros despliegues para mantener los avisos activos.
 6. Despliega a producción. En iPhone, abre esa URL en Safari y toca **Compartir → Añadir a pantalla de inicio → Abrir como app web**.
-7. Desde el icono de DigPro, ingresa con tu clave y toca **Aviso de medianoche → Activar aviso → Permitir**. Usa **Enviar prueba** para revisar el sonido y comprueba **Ajustes → Notificaciones → DigPro → Sonidos** en el iPhone. El modo silencio y Concentración pueden silenciar el aviso.
+7. Desde el icono de DigPro, toca **Aviso de medianoche → Activar aviso → Permitir**. Usa **Enviar prueba** para revisar el sonido y comprueba **Ajustes → Notificaciones → DigPro → Sonidos** en el iPhone. El modo silencio y Concentración pueden silenciar el aviso.
 
 Vercel ejecuta el cierre a las 05:00 UTC, que son las 12:00 a. m. en Lima. El cierre incluye ventas menos publicidad del día que acaba de terminar. Vercel Pro programa por minuto. En Hobby la ejecución puede llegar hasta 59 minutos después de la hora prevista. El aviso se puede recibir con DigPro cerrada.
 

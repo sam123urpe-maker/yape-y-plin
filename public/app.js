@@ -272,7 +272,8 @@ async function selectDay(date) {
     $('load-error').hidden = false;
     $('new-sale').disabled = false;
     empty('Ventas sin consultar', 'Vuelve a intentar para ver los movimientos del día.');
-    status('error', 'Sin conexión');
+    const label = error.status === 503 ? 'Falta configurar' : error.status ? 'Error de conexión' : 'Sin conexión';
+    status('error', label);
   }
 }
 

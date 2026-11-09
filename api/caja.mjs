@@ -36,13 +36,16 @@ function authorized(req, password) {
 
 async function handler(req) {
   const password = process.env.APP_PASSWORD;
-  if (process.env.VERCEL && (!password || password.length < 12)) {
+  if (process.env.VERCEL && password && password.length < 12) {
     return reply({ error: 'Configura APP_PASSWORD con al menos 12 caracteres en Vercel.' }, 503);
   }
   const url = new URL(req.url);
   const action = url.searchParams.get('action');
   const login = req.method === 'POST' && action === 'login';
   if (!login && !authorized(req, password)) return reply({ error: 'Ingresa tu clave para continuar.' }, 401);
+  if (process.env.VERCEL && !login && !process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    return reply({ error: 'Falta configurar GOOGLE_SERVICE_ACCOUNT_JSON en Vercel para conectar Google Sheets.' }, 503);
+  }
   try {
     if (req.method === 'GET') {
       if (action === 'push') return reply({ publicKey: pushKeys(url.origin)?.publicKey || null });
