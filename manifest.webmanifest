@@ -1,0 +1,14 @@
+{
+  "id": "/",
+  "name": "DigPro",
+  "short_name": "DigPro",
+  "lang": "es-PE",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f5fa",
+  "theme_color": "#f5f5fa",
+  "icons": [
+    { "src": "./assets/caja-ios.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
