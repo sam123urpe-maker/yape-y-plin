@@ -42,7 +42,7 @@ button:disabled { cursor: default; opacity: .56; }
 .week { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px; margin-top: 13px; padding: 4px; background: var(--white); border: 1px solid var(--line); border-radius: 17px; }
 .arrow { min-width: 24px; border: none; }
 .arrow svg { width: 16px; height: 16px; }
-.week-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.week-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; touch-action: pan-y pinch-zoom; }
 .day { display: grid; place-items: center; align-content: center; gap: 2px; padding: 3px 0; background: transparent; border-radius: 10px; min-height: 53px; font-variant-numeric: tabular-nums; }
 .day small { color: var(--muted); font-size: .61rem; text-transform: uppercase; }
 .day strong { font-size: .91rem; line-height: 1.05; }

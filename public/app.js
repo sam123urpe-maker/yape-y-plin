@@ -278,7 +278,9 @@ async function selectDay(date) {
     $('edit-ads').disabled = false;
     $('open-calendar').disabled = false;
     $('new-sale').disabled = false;
-    drawDayStrip();
+    for (const button of $('week-days').children) {
+      button.dataset.records = daily.has(button.dataset.date);
+    }
     renderSummary(day);
     status('ready', 'En línea');
     void initPush();
@@ -427,6 +429,23 @@ async function save(form, data, errorId, message) {
 
 $('previous').addEventListener('click', () => selectDay(shift(selected, -1)));
 $('next').addEventListener('click', () => selectDay(shift(selected, 1)));
+const dayStrip = $('week-days');
+let swipeStart = null;
+dayStrip.addEventListener('touchstart', event => {
+  swipeStart = event.touches.length === 1 ? event.touches[0] : null;
+}, { passive: true });
+dayStrip.addEventListener('touchcancel', () => { swipeStart = null; });
+dayStrip.addEventListener('touchend', event => {
+  const start = swipeStart;
+  swipeStart = null;
+  const end = event.changedTouches[0];
+  if (!start || event.touches.length || end?.identifier !== start.identifier) return;
+  const horizontal = end.clientX - start.clientX;
+  const vertical = end.clientY - start.clientY;
+  if (Math.abs(horizontal) < 32 || Math.abs(horizontal) <= Math.abs(vertical)) return;
+  event.preventDefault();
+  selectDay(shift(selected, horizontal < 0 ? 1 : -1));
+}, { passive: false });
 $('retry').addEventListener('click', () => selectDay(selected));
 $('open-calendar').addEventListener('click', () => {
   historyMonth = selected.slice(0, 7) + '-01';
