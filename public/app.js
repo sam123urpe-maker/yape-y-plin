@@ -2,6 +2,8 @@
 
 const $ = id => document.getElementById(id);
 const filePreview = location.protocol === 'file:';
+const dayStrip = $('week-days');
+const dayStripBatch = 28;
 const saleForm = $('sale-form');
 const adsForm = $('ads-form');
 const formatter = new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -27,7 +29,8 @@ const money = cents => (cents < 0 ? '−' : '') + 'S/ ' + formatter.format(Math.
 
 let today = limaNow().date;
 const requestedDay = new URLSearchParams(location.search).get('fecha');
-const isDate = requestedDay && /^\d{4}-\d{2}-\d{2}$/.test(requestedDay) &&
+const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+const isDate = requestedDay && datePattern.test(requestedDay) &&
   Number.isFinite(+asDate(requestedDay)) && asKey(asDate(requestedDay)) === requestedDay;
 let selected = isDate ? requestedDay : today;
 let historyMonth = selected.slice(0, 7) + '-01';
@@ -52,30 +55,52 @@ function drawDayHeading() {
     : capitalized(title) + (selected.slice(0, 4) === today.slice(0, 4) ? '' : ' de ' + selected.slice(0, 4));
 }
 
-function drawDayStrip() {
-  const strip = $('week-days');
-  const focusedDate = strip.contains(document.activeElement) ? document.activeElement.dataset.date : null;
-  const days = Array.from({ length: 7 }, (_, index) => {
-    const date = shift(selected, index - 3);
+function updateDayButton(button) {
+  const date = button.dataset.date;
+  button.dataset.records = daily.has(date);
+  button.setAttribute('aria-pressed', date === selected);
+  button.tabIndex = date === selected ? 0 : -1;
+  if (date === today) button.setAttribute('aria-current', 'date');
+  else button.removeAttribute('aria-current');
+}
+
+function makeDayButtons(anchor, offset, count) {
+  const days = [];
+  for (let index = 0; index < count; index++) {
+    const date = shift(anchor, offset + index);
+    if (!datePattern.test(date)) continue;
     const value = asDate(date);
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'day';
     button.dataset.date = date;
-    button.dataset.records = daily.has(date);
     button.setAttribute('aria-label', fullDate.format(value));
-    button.setAttribute('aria-pressed', date === selected);
-    if (date === today) button.setAttribute('aria-current', 'date');
+    updateDayButton(button);
     const label = document.createElement('small');
     label.textContent = weekday.format(value).slice(0, 3);
     const number = document.createElement('strong');
     number.textContent = value.getUTCDate();
     button.append(label, number, document.createElement('i'));
     button.addEventListener('click', () => selectDay(date));
-    return button;
-  });
-  strip.replaceChildren(...days);
-  if (focusedDate) days.find(button => button.dataset.date === focusedDate)?.focus();
+    days.push(button);
+  }
+  return days;
+}
+
+function drawDayStrip(revealSelected = true) {
+  const first = dayStrip.firstElementChild;
+  const last = dayStrip.lastElementChild;
+  if (!first || selected < first.dataset.date || selected > last.dataset.date) {
+    dayStrip.replaceChildren(...makeDayButtons(selected, -dayStripBatch, dayStripBatch * 2 + 1));
+  } else {
+    for (const button of dayStrip.children) updateDayButton(button);
+  }
+  if (!revealSelected || !dayStrip.clientWidth) return;
+  const strip = dayStrip.getBoundingClientRect();
+  const day = dayStrip.querySelector('[aria-pressed="true"]').getBoundingClientRect();
+  if (day.left < strip.left - 1 || day.right > strip.right + 1) {
+    dayStrip.scrollLeft += day.left + day.width / 2 - (strip.left + strip.width / 2);
+  }
 }
 
 function monday(date) {
@@ -273,14 +298,13 @@ async function selectDay(date) {
     if (version !== loadVersion) return;
     loaded = day;
     daily = new Map(day.daily.map(totals => [totals.date, totals]));
+    const wasHidden = $('dashboard').hidden;
     $('locked').hidden = true;
     $('dashboard').hidden = false;
     $('edit-ads').disabled = false;
     $('open-calendar').disabled = false;
     $('new-sale').disabled = false;
-    for (const button of $('week-days').children) {
-      button.dataset.records = daily.has(button.dataset.date);
-    }
+    drawDayStrip(wasHidden);
     renderSummary(day);
     status('ready', 'En línea');
     void initPush();
@@ -429,23 +453,27 @@ async function save(form, data, errorId, message) {
 
 $('previous').addEventListener('click', () => selectDay(shift(selected, -1)));
 $('next').addEventListener('click', () => selectDay(shift(selected, 1)));
-const dayStrip = $('week-days');
-let swipeStart = null;
-dayStrip.addEventListener('touchstart', event => {
-  swipeStart = event.touches.length === 1 ? event.touches[0] : null;
-}, { passive: true });
-dayStrip.addEventListener('touchcancel', () => { swipeStart = null; });
-dayStrip.addEventListener('touchend', event => {
-  const start = swipeStart;
-  swipeStart = null;
-  const end = event.changedTouches[0];
-  if (!start || event.touches.length || end?.identifier !== start.identifier) return;
-  const horizontal = end.clientX - start.clientX;
-  const vertical = end.clientY - start.clientY;
-  if (Math.abs(horizontal) < 32 || Math.abs(horizontal) <= Math.abs(vertical)) return;
+dayStrip.addEventListener('keydown', event => {
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+  const adjacent = event.key === 'ArrowLeft' ? event.target.previousElementSibling : event.target.nextElementSibling;
+  if (!adjacent) return;
   event.preventDefault();
-  selectDay(shift(selected, horizontal < 0 ? 1 : -1));
-}, { passive: false });
+  adjacent.focus();
+});
+dayStrip.addEventListener('scroll', () => {
+  const first = dayStrip.firstElementChild;
+  if (!first || !dayStrip.clientWidth) return;
+  const dayWidth = first.getBoundingClientRect().width;
+  if (dayStrip.scrollLeft < dayWidth) {
+    const left = first.getBoundingClientRect().left;
+    dayStrip.prepend(...makeDayButtons(first.dataset.date, -dayStripBatch, dayStripBatch));
+    dayStrip.scrollLeft += first.getBoundingClientRect().left - left;
+  }
+  if (dayStrip.scrollWidth - dayStrip.clientWidth - dayStrip.scrollLeft < dayWidth) {
+    const last = dayStrip.lastElementChild;
+    dayStrip.append(...makeDayButtons(last.dataset.date, 1, dayStripBatch));
+  }
+}, { passive: true });
 $('retry').addEventListener('click', () => selectDay(selected));
 $('open-calendar').addEventListener('click', () => {
   historyMonth = selected.slice(0, 7) + '-01';
@@ -549,7 +577,7 @@ function updateToday() {
   if (followToday) selectDay(today);
   else {
     drawDayHeading();
-    drawDayStrip();
+    drawDayStrip(false);
     if (loaded) {
       renderSummary(loaded);
     }
