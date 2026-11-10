@@ -164,6 +164,20 @@ form input:not([type="radio"], [type="checkbox"]) { width: 100%; min-width: 0; h
 .push-panel p { color: var(--muted); margin-top: 4px; font-size: .8rem; line-height: 1.4; }
 .push-actions { display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .push-actions .text-button { padding-inline: 0; font-size: .82rem; }
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.settings-drawer { position: fixed; inset: 0 0 0 auto; margin: 0; width: min(90vw, 390px); max-width: none; height: 100dvh; max-height: none; padding: max(18px, env(safe-area-inset-top)) 16px 24px; border-radius: 20px 0 0 20px; }
+.sales-views { display: grid; grid-template-columns: 1fr 1.6fr; gap: 5px; margin-bottom: 9px; padding: 4px; background: var(--tint); border-radius: 12px; }
+.sales-views button { min-height: 44px; padding: 4px 8px; border-radius: 9px; background: none; color: var(--purple); font-size: .83rem; font-weight: 750; }
+.sales-views button[aria-pressed="true"] { background: white; box-shadow: 0 2px 7px #24194413; }
+#review-count { display: inline-block; margin-left: 3px; padding: 2px 5px; border-radius: 20px; background: var(--purple); color: white; font-size: .7rem; }
+.review-status { padding: 14px; font-size: .87rem; color: var(--muted); }
+.review-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; padding: 12px; align-items: center; }
+.review-item + .review-item { border-top: 1px solid var(--line); }
+.review-item p { color: var(--muted); font-size: .8rem; margin-top: 3px; }
+.review-item .text-button { justify-self: start; min-height: 40px; padding-inline: 0; text-decoration: none; }
+.review-item .icon-button { grid-column: 2; grid-row: 1 / span 2; }
+.review-select { width: 100%; min-height: 48px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; background: white; color: inherit; font: inherit; }
+#review-form .primary { margin-top: 12px; }
 .whatsapp-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .whatsapp-switch { display: grid; place-items: center; min-width: 52px; min-height: 44px; }
 .whatsapp-switch input { appearance: none; display: grid; align-items: center; width: 48px; height: 28px; padding: 3px; margin: 0; border: 0; border-radius: 20px; background: #767089; cursor: pointer; }

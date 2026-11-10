@@ -19,6 +19,7 @@ const files = {
   '/assets/caja-ios.png': ['assets/caja-ios.png', 'image/png'],
   '/assets/yape.png': ['assets/yape.png', 'image/png'],
   '/assets/plin.png': ['assets/plin.png', 'image/png'],
+  '/assets/venta-confirmada.mp3': ['assets/venta-confirmada.mp3', 'audio/mpeg'],
 };
 
 function openBrowser() {

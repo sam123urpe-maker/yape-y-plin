@@ -1,5 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { readWhatsAppControl, writeWhatsAppMode, writeWhatsAppHeartbeat } from '../lib/sheets.mjs';
+import { confirmPaymentReview, listPendingReviews, queuePaymentReview, validReceipt, validReviewCents, validReviewCourse, validReviewId } from '../lib/reviews.mjs';
+import { managePush, pushKeys, sendReviewNotice } from '../lib/push.mjs';
 
 const lifetime = 30 * 86400;
 const digest = value => createHash('sha256').update(value).digest();
@@ -9,7 +11,10 @@ const reply = (data, status = 200, headers = {}) => Response.json(data, {
   status, headers: { 'Cache-Control': 'no-store', ...headers },
 });
 
-export function whatsappApi(store = { readWhatsAppControl, writeWhatsAppMode, writeWhatsAppHeartbeat }) {
+export function whatsappApi(store = {
+  readWhatsAppControl, writeWhatsAppMode, writeWhatsAppHeartbeat,
+  confirmPaymentReview, listPendingReviews, queuePaymentReview, sendReviewNotice,
+}) {
   return {
     async fetch(req) {
       const secret = process.env.DIGPRO_WHATSAPP_CONTROL;
@@ -20,20 +25,22 @@ export function whatsappApi(store = { readWhatsAppControl, writeWhatsAppMode, wr
       const cookie = (req.headers.get('cookie') || '').match(/(?:^|;\s*)digpro_whatsapp=([^;]+)/)?.[1] || '';
       const [expires, signature] = cookie.split('.');
       const operator = signature && /^\d{10}$/.test(expires) && Number(expires) > now && equal(signature, sign(secret, 'device:' + expires));
-      const agent = action === 'sync' && equal(req.headers.get('authorization') || '', 'Bearer ' + sign(secret, 'digpro:whatsapp:agent:v1'));
+      const agentAction = action === 'sync' || action === 'receipt';
+      const agent = agentAction && equal(req.headers.get('authorization') || '', 'Bearer ' + sign(secret, 'digpro:whatsapp:agent:v1'));
       const login = action === 'link' && req.method === 'POST';
-      if (!login && (action === 'sync' ? !agent : !operator)) return reply({ error: 'Vincula este dispositivo para usar el interruptor.' }, 401);
+      if (!login && (agentAction ? !agent : !operator)) return reply({ error: 'Vincula este dispositivo para usar WhatsApp en DigPro.' }, 401);
       try {
         if (req.method === 'GET' && !action) {
           const { desired, applied, connected, heartbeat } = await store.readWhatsAppControl();
           return reply({ desired, applied, connected: connected && Date.now() - Date.parse(heartbeat) < 65_000 });
         }
+        if (req.method === 'GET' && action === 'reviews') return reply({ pending: await store.listPendingReviews() });
         if (req.method !== 'POST') return reply({ error: 'Método no permitido.' }, 405);
         if (req.headers.get('sec-fetch-site') === 'cross-site' || !req.headers.get('content-type')?.startsWith('application/json')) {
           return reply({ error: 'Solicitud no válida.' }, 400);
         }
         const raw = await req.text();
-        if (raw.length > 1024) return reply({ error: 'Solicitud demasiado grande.' }, 413);
+        if (raw.length > 4096) return reply({ error: 'Solicitud demasiado grande.' }, 413);
         const body = JSON.parse(raw);
         if (login) {
           if (typeof body?.code !== 'string' || !equal(body.code, secret)) return reply({ error: 'El código es incorrecto.' }, 401);
@@ -50,11 +57,36 @@ export function whatsappApi(store = { readWhatsAppControl, writeWhatsAppMode, wr
           await store.writeWhatsAppMode(body.enabled);
           return reply({ ok: true });
         }
+        if (action === 'receipt' && validReceipt(body)) {
+          if (await store.queuePaymentReview(body)) {
+            await store.sendReviewNotice({ type: 'review', id: body.id, title: 'DigPro · Pago por confirmar',
+              body: `Un cliente (+${body.phone}) envió un comprobante${body.course ? ' de ' + body.course : ''}.` }, pushKeys(url.origin))
+              .catch(error => console.error('DigPro aviso de comprobante', error.code || error.name));
+          }
+          return reply({ ok: true }, 201);
+        }
+        if (action === 'confirm' && validReviewId(body?.id) && validReviewCents(body.cents)
+            && validReviewCourse(body.course) && ['Yape', 'Plin'].includes(body.method)) {
+          const { found, receipt, date } = await store.confirmPaymentReview(body.id, body.method, body.cents, body.course);
+          if (!found) return reply({ error: 'El comprobante ya no está disponible.' }, 404);
+          if (receipt) {
+            await store.sendReviewNotice({ type: 'sale', id: receipt.id, date, title: 'DigPro · Venta confirmada',
+              body: `${body.course} · S/ ${(body.cents / 100).toFixed(2)} 🎉` }, pushKeys(url.origin))
+              .catch(error => console.error('DigPro aviso de venta', error.code || error.name));
+          }
+          return reply({ ok: true, date });
+        }
+        if (action === 'review-push' && body && typeof body === 'object') {
+          const keys = pushKeys(url.origin);
+          if (!keys) return reply({ error: 'Los avisos aún no están configurados.' }, 503);
+          const { status, ...result } = await managePush(body, keys, 'review-');
+          return reply(result, status || 200);
+        }
         return reply({ error: 'Solicitud no válida.' }, 400);
       } catch (error) {
         if (error instanceof SyntaxError) return reply({ error: 'Solicitud no válida.' }, 400);
         console.error('DigPro WhatsApp', error.response?.status || error.code || error.name);
-        return reply({ error: 'No se pudo sincronizar el modo de WhatsApp.' }, 502);
+        return reply({ error: 'No se pudo completar la operación de WhatsApp.' }, 502);
       }
     },
   };

@@ -375,6 +375,7 @@ async function initPush() {
     push.registration = registration;
     updatePush();
     $('push-panel').hidden = false;
+    void refreshReviewPush();
   } catch {
     push.started = false;
   }
@@ -386,8 +387,6 @@ $('push-toggle').addEventListener('click', async () => {
     if (push.enabled) {
       await api('?action=push', { operation: 'off', endpoint: push.subscription.endpoint });
       push.enabled = false;
-      await push.subscription.unsubscribe().catch(() => {});
-      push.subscription = null;
     } else {
       push.subscription ||= await push.registration.pushManager.subscribe({
         userVisibleOnly: true, applicationServerKey: push.publicKey,
@@ -414,7 +413,8 @@ $('push-test').addEventListener('click', async () => {
     if (error.status === 410) {
       await push.subscription.unsubscribe().catch(() => {});
       push.subscription = null;
-      push.enabled = false;
+      push.enabled = reviewPushEnabled = false;
+      updateReviewPush();
     }
     updatePush(error.message);
   } finally {
@@ -639,7 +639,19 @@ const whatsappToggle = $('whatsapp-toggle');
 const whatsappLink = $('whatsapp-link');
 let whatsappBusy = false;
 let whatsappAvailable = true;
+let whatsappLinked = false;
 let nextWhatsAppRefresh = 0;
+let reviewPushEnabled = false;
+let reviewPushBusy = false;
+let reviewFetch = 0;
+let reviewing;
+const reviewDate = new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', dateStyle: 'short', timeStyle: 'short' });
+const reviewLink = new URLSearchParams(location.search).get('por-confirmar');
+const reviewDraft = 'Hola 😊 Espera un momento, por favor. Voy a verificar tu pago.';
+const saleSound = new Audio('./assets/venta-confirmada.mp3');
+const playedSales = new Set();
+let soundEnabled = false;
+try { soundEnabled = localStorage.getItem('digpro-sale-sound') === 'on'; } catch { /* Storage can be unavailable. */ }
 
 async function whatsappRequest(action = '', body) {
   const response = await fetch('/api/whatsapp' + (action ? '?action=' + action : ''), {
@@ -655,11 +667,210 @@ async function whatsappRequest(action = '', body) {
   return data;
 }
 
+function updateReviewPush(message = '') {
+  $('review-push-toggle').hidden = !push.registration || !whatsappLinked;
+  $('review-push-toggle').textContent = reviewPushEnabled ? 'Desactivar notificaciones' : 'Activar notificaciones';
+  $('review-push-test').hidden = !reviewPushEnabled || !whatsappLinked;
+  $('review-push-status').textContent = message || (!whatsappLinked
+    ? 'Vincula este dispositivo en WhatsApp automático para activar los avisos de ventas.'
+    : !push.registration ? 'Abre DigPro desde la pantalla de inicio del iPhone para recibir notificaciones.'
+    : reviewPushEnabled ? 'Avisos de comprobantes y ventas activos en este dispositivo.'
+    : 'Activa los avisos de comprobantes por revisar y ventas confirmadas.');
+}
+
+async function refreshReviewPush() {
+  if (reviewPushBusy || !push.registration || !whatsappLinked) return;
+  if (push.subscription) {
+    try {
+      const { enabled } = await whatsappRequest('review-push', { operation: 'status', endpoint: push.subscription.endpoint });
+      reviewPushEnabled = enabled;
+    } catch (error) {
+      updateReviewPush(error.message);
+      return;
+    }
+  }
+  updateReviewPush();
+}
+
+async function changeReviewPush(test = false) {
+  if (reviewPushBusy || !whatsappLinked || !push.registration) return;
+  reviewPushBusy = true;
+  $('review-push-toggle').disabled = $('review-push-test').disabled = true;
+  try {
+    if (test) {
+      await whatsappRequest('review-push', { operation: 'test', endpoint: push.subscription.endpoint });
+      notify('Notificación de prueba enviada.');
+    } else if (reviewPushEnabled) {
+      await whatsappRequest('review-push', { operation: 'off', endpoint: push.subscription.endpoint });
+      reviewPushEnabled = false;
+    } else {
+      push.subscription ||= await push.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: push.publicKey });
+      await whatsappRequest('review-push', { operation: 'on', subscription: push.subscription.toJSON() });
+      reviewPushEnabled = true;
+    }
+    updateReviewPush();
+  } catch (error) {
+    if (error.status === 410) {
+      await push.subscription?.unsubscribe().catch(() => {});
+      push.subscription = null;
+      reviewPushEnabled = push.enabled = false;
+      updatePush();
+    }
+    updateReviewPush(Notification.permission === 'denied'
+      ? 'Permite las notificaciones de DigPro en los ajustes del iPhone.' : error.message);
+  } finally {
+    $('review-push-toggle').disabled = $('review-push-test').disabled = false;
+    reviewPushBusy = false;
+  }
+}
+
+function updateSaleSound() {
+  $('sale-sound-toggle').textContent = soundEnabled ? 'Desactivar sonido' : 'Activar y probar sonido';
+  $('sale-sound-toggle').setAttribute('aria-pressed', String(soundEnabled));
+}
+
+function playSaleOnce(id) {
+  if (!soundEnabled || document.hidden || playedSales.has(id)) return;
+  playedSales.add(id);
+  saleSound.currentTime = 0;
+  void saleSound.play().catch(() => playedSales.delete(id));
+}
+
+$('sale-sound-toggle').addEventListener('click', async () => {
+  if (soundEnabled) {
+    soundEnabled = false;
+    saleSound.pause();
+  } else {
+    saleSound.currentTime = 0;
+    try {
+      await saleSound.play();
+      soundEnabled = true;
+    } catch {
+      notify('El navegador no pudo reproducir el sonido.');
+    }
+  }
+  try { localStorage.setItem('digpro-sale-sound', soundEnabled ? 'on' : 'off'); } catch { /* Optional preference. */ }
+  updateSaleSound();
+});
+updateSaleSound();
+
+$('open-settings').addEventListener('click', () => {
+  $('settings-dialog').showModal();
+  updateReviewPush();
+  void initPush();
+  void refreshReviewPush();
+});
+$('review-push-toggle').addEventListener('click', () => changeReviewPush());
+$('review-push-test').addEventListener('click', () => changeReviewPush(true));
+
+function openReview(receipt) {
+  reviewing = receipt;
+  $('review-customer').textContent = 'Cliente +' + receipt.phone;
+  $('review-course').value = receipt.course || '';
+  $('review-method').value = '';
+  $('review-amount').value = receipt.cents ? (receipt.cents / 100).toFixed(2) : '';
+  showError('review-error');
+  $('review-dialog').showModal();
+}
+
+function renderReviews(receipts, message = '') {
+  $('review-count').textContent = receipts.length;
+  $('review-count').hidden = receipts.length === 0;
+  $('review-list').hidden = receipts.length === 0;
+  $('review-status').hidden = receipts.length > 0;
+  $('review-status').textContent = message || 'No hay pagos por confirmar.';
+  const entries = receipts.map(receipt => {
+    const row = document.createElement('li');
+    row.className = 'review-item';
+    if (receipt.id === reviewLink) row.tabIndex = -1;
+    const info = document.createElement('div');
+    const name = document.createElement('strong');
+    name.textContent = 'Cliente +' + receipt.phone;
+    const details = document.createElement('p');
+    details.textContent = [receipt.course || 'Curso por identificar', receipt.cents ? money(receipt.cents) : 'Monto por revisar', reviewDate.format(new Date(receipt.receivedAt))].join(' · ');
+    info.append(name, details);
+    const link = document.createElement('a');
+    link.className = 'text-button';
+    link.textContent = 'Ver pago';
+    link.href = 'https://wa.me/' + receipt.phone + '?text=' + encodeURIComponent(reviewDraft);
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    const check = document.createElement('button');
+    check.type = 'button';
+    check.className = 'icon-button';
+    check.setAttribute('aria-label', 'Confirmar pago de +' + receipt.phone);
+    check.innerHTML = '<svg aria-hidden="true"><use href="#i-check"/></svg>';
+    check.addEventListener('click', () => openReview(receipt));
+    row.append(info, link, check);
+    return row;
+  });
+  $('review-list').replaceChildren(...entries);
+}
+
+async function refreshReviews() {
+  const version = ++reviewFetch;
+  if (!whatsappLinked) {
+    renderReviews([], 'Vincula este dispositivo en WhatsApp automático para revisar pagos.');
+    return;
+  }
+  try {
+    const { pending: receipts } = await whatsappRequest('reviews');
+    if (version === reviewFetch) renderReviews(receipts);
+  } catch (error) {
+    if (version === reviewFetch) renderReviews([], error.message);
+  }
+}
+
+function showReviewView(open) {
+  $('show-sales').setAttribute('aria-pressed', String(!open));
+  $('show-reviews').setAttribute('aria-pressed', String(open));
+  $('current-sales').hidden = open;
+  $('pending-sales').hidden = !open;
+  if (open) void refreshReviews();
+}
+$('show-sales').addEventListener('click', () => showReviewView(false));
+$('show-reviews').addEventListener('click', () => showReviewView(true));
+
+$('review-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (form.dataset.busy === 'true' || !reviewing) return;
+  const cents = parseCents($('review-amount').value);
+  if (!cents) { showError('review-error', 'Ingresa un monto mayor que cero.'); return; }
+  const { id } = reviewing;
+  const method = $('review-method').value;
+  const course = $('review-course').value;
+  setBusy(form, true);
+  showError('review-error');
+  try {
+    const { date } = await whatsappRequest('confirm', { id, method, course, cents });
+    $('review-dialog').close();
+    notify('Venta confirmada y registrada.');
+    playSaleOnce(id);
+    await refreshReviews();
+    await selectDay(date || selected);
+  } catch (error) {
+    showError('review-error', error.message);
+  } finally {
+    setBusy(form, false);
+  }
+});
+
+navigator.serviceWorker?.addEventListener('message', event => {
+  if (event.data?.type === 'sale') {
+    playSaleOnce(event.data.id);
+    if (!document.hidden) void selectDay(selected);
+  }
+  if (event.data?.type === 'sale' || event.data?.type === 'review') void refreshReviews();
+});
+
 async function refreshWhatsApp() {
   if (whatsappBusy || !whatsappAvailable || document.hidden || location.protocol === 'file:') return;
   whatsappBusy = true;
   try {
     const { desired, applied, connected } = await whatsappRequest();
+    const wasLinked = whatsappLinked;
+    whatsappLinked = true;
     $('whatsapp-panel').hidden = false;
     $('whatsapp-control').hidden = false;
     $('whatsapp-offers').hidden = false;
@@ -669,8 +880,13 @@ async function refreshWhatsApp() {
     nextWhatsAppRefresh = Date.now() + (connected && desired !== applied ? 5000 : 30000);
     $('whatsapp-status').textContent = !connected ? 'Esperando conexión del servidor.' : desired !== applied
       ? 'Aplicando el cambio en el servidor…' : desired ? 'Respuestas automáticas activas · Prueba privada' : 'Respuestas manuales · Prueba privada';
+    void refreshReviews();
+    if (!wasLinked) void refreshReviewPush();
   } catch (error) {
     if (error.status === 401) {
+      whatsappLinked = false;
+      void refreshReviews();
+      updateReviewPush();
       $('whatsapp-panel').hidden = false;
       $('whatsapp-control').hidden = true;
       $('whatsapp-offers').hidden = true;
@@ -733,3 +949,4 @@ setInterval(updateToday, 30000);
 setInterval(() => { if (whatsappLink.hidden && Date.now() >= nextWhatsAppRefresh) refreshWhatsApp(); }, 5000);
 selectDay(selected);
 refreshWhatsApp();
+if (reviewLink) showReviewView(true);

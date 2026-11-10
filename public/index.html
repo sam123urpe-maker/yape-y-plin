@@ -27,12 +27,17 @@
     <symbol id="i-glass" viewBox="0 0 24 24"><path d="M4 4h16l-8 9Zm8 9v7m-4 0h8M7 7h10"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
     <symbol id="i-bolt" viewBox="0 0 24 24"><path d="m13 2-8 12h6l-1 8 9-12h-6z"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
   </svg>
 
   <main class="shell">
     <header class="topbar">
       <div class="brand"><img class="brand-icon" src="./assets/caja-ios.png" width="44" height="44" alt=""><div><h1>DigPro</h1><p>Rituales y Cócteles</p></div></div>
-      <span class="sync" id="sync" data-state="loading"><i></i><span>Conectando</span></span>
+      <div class="topbar-actions">
+        <span class="sync" id="sync" data-state="loading"><i></i><span>Conectando</span></span>
+        <button type="button" class="icon-button" id="open-settings" aria-label="Abrir menú de DigPro" aria-haspopup="dialog"><svg aria-hidden="true"><use href="#i-menu"/></svg></button>
+      </div>
     </header>
 
     <section id="locked" class="panel lock" hidden>
@@ -86,19 +91,20 @@
 
       <section class="movements" aria-labelledby="sales-title">
         <div class="section-heading"><h2 id="sales-title">Ventas del día</h2><span class="count" id="count" hidden></span></div>
-        <div class="panel empty" id="empty-sales">
-          <span class="empty-icon"><svg><use href="#i-receipt"/></svg></span>
-          <div><h3 id="empty-title">Cargando ventas</h3><p id="empty-copy">Consultando Google Sheets…</p></div>
+        <div class="sales-views" aria-label="Vistas de ventas">
+          <button type="button" id="show-sales" aria-controls="current-sales" aria-pressed="true">Ventas</button>
+          <button type="button" id="show-reviews" aria-controls="pending-sales" aria-pressed="false">Ventas por confirmar <span id="review-count" hidden></span></button>
         </div>
-        <ul class="sales panel" id="sales" hidden></ul>
-      </section>
-
-      <section class="panel push-panel" id="push-panel" aria-labelledby="push-title" hidden>
-        <h2 id="push-title">Aviso de medianoche</h2>
-        <p id="push-status" role="status">Tu ganancia neta diaria a las 12:00 a. m., hora de Lima.</p>
-        <div class="push-actions">
-          <button type="button" id="push-toggle" class="text-button" hidden>Activar aviso</button>
-          <button type="button" id="push-test" class="text-button" hidden>Enviar prueba</button>
+        <div id="current-sales">
+          <div class="panel empty" id="empty-sales">
+            <span class="empty-icon"><svg><use href="#i-receipt"/></svg></span>
+            <div><h3 id="empty-title">Cargando ventas</h3><p id="empty-copy">Consultando Google Sheets…</p></div>
+          </div>
+          <ul class="sales panel" id="sales" hidden></ul>
+        </div>
+        <div id="pending-sales" hidden>
+          <p class="panel review-status" id="review-status" role="status">Vincula este dispositivo en WhatsApp automático para revisar pagos.</p>
+          <ul class="sales panel" id="review-list" hidden></ul>
         </div>
       </section>
 
@@ -123,6 +129,46 @@
       </footer>
     </div>
   </main>
+
+  <dialog id="settings-dialog" class="settings-drawer" aria-labelledby="settings-title">
+    <div class="sheet-header"><h2 id="settings-title">Ajustes</h2><button type="button" data-close class="icon-button" aria-label="Cerrar ajustes"><svg><use href="#i-close"/></svg></button></div>
+    <section class="panel push-panel" id="review-push-panel" aria-labelledby="review-push-title">
+      <h2 id="review-push-title">Notificaciones de ventas</h2>
+      <p id="review-push-status" role="status">Abre DigPro desde la pantalla de inicio de tu iPhone y vincula este dispositivo para recibir avisos.</p>
+      <div class="push-actions">
+        <button type="button" id="review-push-toggle" class="text-button" hidden>Activar notificaciones</button>
+        <button type="button" id="review-push-test" class="text-button" hidden>Enviar prueba</button>
+      </div>
+    </section>
+    <section class="panel push-panel" aria-labelledby="sale-sound-title">
+      <h2 id="sale-sound-title">Sonido de ventas</h2>
+      <p>Se reproduce al confirmar una venta de WhatsApp con DigPro abierto.</p>
+      <button type="button" class="text-button" id="sale-sound-toggle" aria-pressed="false">Activar y probar sonido</button>
+    </section>
+    <section class="panel push-panel" id="push-panel" aria-labelledby="push-title" hidden>
+      <h2 id="push-title">Aviso de medianoche</h2>
+      <p id="push-status" role="status">Tu ganancia neta diaria a las 12:00 a. m., hora de Lima.</p>
+      <div class="push-actions">
+        <button type="button" id="push-toggle" class="text-button" hidden>Activar aviso</button>
+        <button type="button" id="push-test" class="text-button" hidden>Enviar prueba</button>
+      </div>
+    </section>
+  </dialog>
+
+  <dialog id="review-dialog" aria-labelledby="review-title">
+    <form id="review-form">
+      <div class="sheet-header"><h2 id="review-title">Confirmar pago</h2><button type="button" data-close class="icon-button" aria-label="Cerrar"><svg><use href="#i-close"/></svg></button></div>
+      <p class="form-copy" id="review-customer"></p>
+      <label for="review-course">Curso</label>
+      <select id="review-course" class="review-select" required><option value="">Elige el curso</option><option>Rituales</option><option>Cócteles</option></select>
+      <label for="review-method">Medio de pago</label>
+      <select id="review-method" class="review-select" required><option value="">Elige el medio</option><option>Yape</option><option>Plin</option></select>
+      <label for="review-amount">Monto recibido</label>
+      <div class="money-field"><span>S/</span><input id="review-amount" inputmode="decimal" maxlength="9" required></div>
+      <p class="error" id="review-error" role="alert" hidden></p>
+      <button type="submit" class="primary"><svg aria-hidden="true"><use href="#i-check"/></svg>Confirmar venta</button>
+    </form>
+  </dialog>
 
   <dialog id="calendar-dialog" class="history" aria-labelledby="history-title">
     <div class="sheet-header">
