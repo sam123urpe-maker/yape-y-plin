@@ -634,6 +634,102 @@ function updateToday() {
     }
   }
 }
+
+const whatsappToggle = $('whatsapp-toggle');
+const whatsappLink = $('whatsapp-link');
+let whatsappBusy = false;
+let whatsappAvailable = true;
+let nextWhatsAppRefresh = 0;
+
+async function whatsappRequest(action = '', body) {
+  const response = await fetch('/api/whatsapp' + (action ? '?action=' + action : ''), {
+    cache: 'no-store', signal: AbortSignal.timeout(20000),
+    ...(body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(data.error || 'No se pudo consultar WhatsApp.');
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+
+async function refreshWhatsApp() {
+  if (whatsappBusy || !whatsappAvailable || document.hidden || location.protocol === 'file:') return;
+  whatsappBusy = true;
+  try {
+    const { desired, applied, connected } = await whatsappRequest();
+    $('whatsapp-panel').hidden = false;
+    $('whatsapp-control').hidden = false;
+    $('whatsapp-offers').hidden = false;
+    whatsappLink.hidden = true;
+    whatsappToggle.checked = desired;
+    whatsappToggle.disabled = !connected || desired !== applied;
+    nextWhatsAppRefresh = Date.now() + (connected && desired !== applied ? 5000 : 30000);
+    $('whatsapp-status').textContent = !connected ? 'Esperando conexión del servidor.' : desired !== applied
+      ? 'Aplicando el cambio en el servidor…' : desired ? 'Respuestas automáticas activas · Prueba privada' : 'Respuestas manuales · Prueba privada';
+  } catch (error) {
+    if (error.status === 401) {
+      $('whatsapp-panel').hidden = false;
+      $('whatsapp-control').hidden = true;
+      $('whatsapp-offers').hidden = true;
+      whatsappLink.hidden = false;
+      $('whatsapp-status').textContent = 'Vincula este dispositivo para controlar WhatsApp.';
+    } else if ([404, 503].includes(error.status)) {
+      whatsappAvailable = false;
+      $('whatsapp-panel').hidden = true;
+    } else {
+      whatsappToggle.disabled = true;
+      $('whatsapp-status').textContent = 'No se pudo consultar el servidor de WhatsApp.';
+    }
+  } finally {
+    whatsappBusy = false;
+  }
+}
+
+whatsappToggle.addEventListener('change', async () => {
+  if (whatsappBusy) {
+    whatsappToggle.checked = !whatsappToggle.checked;
+    return;
+  }
+  whatsappBusy = true;
+  whatsappToggle.disabled = true;
+  try {
+    await whatsappRequest('mode', { enabled: whatsappToggle.checked });
+  } catch (error) {
+    whatsappToggle.checked = !whatsappToggle.checked;
+    $('whatsapp-status').textContent = error.message;
+    whatsappToggle.disabled = false;
+    return;
+  } finally {
+    whatsappBusy = false;
+  }
+  await refreshWhatsApp();
+});
+
+whatsappLink.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (whatsappBusy) return;
+  whatsappBusy = true;
+  const submit = whatsappLink.querySelector('button');
+  submit.disabled = true;
+  try {
+    await whatsappRequest('link', { code: $('whatsapp-code').value.trim() });
+    whatsappLink.reset();
+  } catch (error) {
+    $('whatsapp-status').textContent = error.message;
+    return;
+  } finally {
+    submit.disabled = false;
+    whatsappBusy = false;
+  }
+  await refreshWhatsApp();
+});
+
 document.addEventListener('visibilitychange', updateToday);
+document.addEventListener('visibilitychange', refreshWhatsApp);
 setInterval(updateToday, 30000);
+setInterval(() => { if (whatsappLink.hidden && Date.now() >= nextWhatsAppRefresh) refreshWhatsApp(); }, 5000);
 selectDay(selected);
+refreshWhatsApp();

@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import api from './api/caja.mjs';
+import whatsapp from './api/whatsapp.mjs';
 import { findLocalCredentials } from './lib/local-credentials.mjs';
 
 await findLocalCredentials();
@@ -32,7 +33,7 @@ function openBrowser() {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, origin);
-    if (url.pathname === '/api/caja') {
+    if (url.pathname === '/api/caja' || url.pathname === '/api/whatsapp') {
       const body = [];
       let length = 0;
       for await (const chunk of req) {
@@ -43,7 +44,8 @@ const server = createServer(async (req, res) => {
         }
         body.push(chunk);
       }
-      const response = await api.fetch(new Request(url, {
+      const handler = url.pathname === '/api/caja' ? api : whatsapp;
+      const response = await handler.fetch(new Request(url, {
         method: req.method, headers: req.headers, body: body.length ? Buffer.concat(body) : undefined,
       }));
       res.writeHead(response.status, Object.fromEntries(response.headers));

@@ -102,6 +102,22 @@
         </div>
       </section>
 
+      <section class="panel push-panel whatsapp-panel" id="whatsapp-panel" aria-labelledby="whatsapp-title" hidden>
+        <div class="whatsapp-heading">
+          <h2 id="whatsapp-title">WhatsApp automático</h2>
+          <label class="whatsapp-switch" id="whatsapp-control" hidden>
+            <input id="whatsapp-toggle" type="checkbox" role="switch" aria-labelledby="whatsapp-title" aria-describedby="whatsapp-status" disabled>
+          </label>
+        </div>
+        <p id="whatsapp-status" role="status">Prueba privada de WhatsApp.</p>
+        <p id="whatsapp-offers" hidden>El interruptor controla las respuestas. El envío de ofertas se probará por separado.</p>
+        <form id="whatsapp-link" hidden>
+          <label for="whatsapp-code">Código para vincular este dispositivo</label>
+          <input id="whatsapp-code" type="password" autocomplete="off" maxlength="64" required>
+          <button type="submit" class="text-button">Vincular</button>
+        </form>
+      </section>
+
       <footer class="dock">
         <button id="new-sale" class="primary" type="button" disabled><svg><use href="#i-plus"/></svg>Nueva venta</button>
       </footer>

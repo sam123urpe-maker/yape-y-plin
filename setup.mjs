@@ -4,7 +4,7 @@ import { findLocalCredentials } from './lib/local-credentials.mjs';
 try {
   await findLocalCredentials();
   await prepareSheets();
-  console.log('Google Sheets respondió. Pestañas App - Ventas, App - Publicidad y App - Avisos listas.');
+  console.log('Google Sheets respondió. Pestañas App - Ventas, App - Publicidad, App - Avisos y App - WhatsApp listas.');
 } catch (error) {
   const reasons = error.response?.data?.error?.details?.map(detail => detail.reason).filter(Boolean) || [];
   console.error('No se pudo preparar la hoja:', error.response?.status || error.code || error.name,
