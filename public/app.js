@@ -648,7 +648,9 @@ let reviewing;
 const reviewDate = new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', dateStyle: 'short', timeStyle: 'short' });
 const reviewLink = new URLSearchParams(location.search).get('por-confirmar');
 const reviewDraft = 'Hola 😊 Espera un momento, por favor. Voy a verificar tu pago.';
-const saleSound = new Audio('./assets/venta-confirmada.mp3');
+const saleSound = new Audio('./assets/venta-confirmada.mp3?v=2');
+const saleSoundStatus = $('sale-sound-status');
+const saleSoundDescription = saleSoundStatus.textContent;
 const playedSales = new Set();
 let soundEnabled = false;
 try { soundEnabled = localStorage.getItem('digpro-sale-sound') === 'on'; } catch { /* Storage can be unavailable. */ }
@@ -672,7 +674,7 @@ function updateReviewPush(message = '') {
   $('review-push-toggle').textContent = reviewPushEnabled ? 'Desactivar notificaciones' : 'Activar notificaciones';
   $('review-push-test').hidden = !reviewPushEnabled || !whatsappLinked;
   $('review-push-status').textContent = message || (!whatsappLinked
-    ? 'Vincula este dispositivo en WhatsApp automático para activar los avisos de ventas.'
+    ? 'Vincula este dispositivo en Ajustes → WhatsApp automático para activar los avisos de ventas.'
     : !push.registration ? 'Abre DigPro desde la pantalla de inicio del iPhone para recibir notificaciones.'
     : reviewPushEnabled ? 'Avisos de comprobantes y ventas activos en este dispositivo.'
     : 'Activa los avisos de comprobantes por revisar y ventas confirmadas.');
@@ -727,36 +729,49 @@ async function changeReviewPush(test = false) {
 function updateSaleSound() {
   $('sale-sound-toggle').textContent = soundEnabled ? 'Desactivar sonido' : 'Activar y probar sonido';
   $('sale-sound-toggle').setAttribute('aria-pressed', String(soundEnabled));
+  $('sale-sound-test').hidden = !soundEnabled;
+}
+
+function playSaleSound() {
+  saleSound.currentTime = 0;
+  return saleSound.play();
 }
 
 function playSaleOnce(id) {
   if (!soundEnabled || document.hidden || playedSales.has(id)) return;
   playedSales.add(id);
-  saleSound.currentTime = 0;
-  void saleSound.play().catch(() => playedSales.delete(id));
+  void playSaleSound().catch(() => playedSales.delete(id));
+}
+
+async function testSaleSound() {
+  saleSoundStatus.textContent = saleSoundDescription;
+  try {
+    await playSaleSound();
+    return true;
+  } catch {
+    saleSoundStatus.textContent = 'El navegador no pudo reproducir el sonido. Toca el botón para probar de nuevo.';
+    return false;
+  }
 }
 
 $('sale-sound-toggle').addEventListener('click', async () => {
   if (soundEnabled) {
     soundEnabled = false;
     saleSound.pause();
+    saleSoundStatus.textContent = saleSoundDescription;
   } else {
-    saleSound.currentTime = 0;
-    try {
-      await saleSound.play();
-      soundEnabled = true;
-    } catch {
-      notify('El navegador no pudo reproducir el sonido.');
-    }
+    soundEnabled = await testSaleSound();
   }
   try { localStorage.setItem('digpro-sale-sound', soundEnabled ? 'on' : 'off'); } catch { /* Optional preference. */ }
   updateSaleSound();
 });
+$('sale-sound-test').addEventListener('click', () => void testSaleSound());
 updateSaleSound();
 
 $('open-settings').addEventListener('click', () => {
   $('settings-dialog').showModal();
   updateReviewPush();
+  void refreshWhatsApp();
   void initPush();
   void refreshReviewPush();
 });
@@ -767,7 +782,7 @@ function openReview(receipt) {
   reviewing = receipt;
   $('review-customer').textContent = 'Cliente +' + receipt.phone;
   $('review-course').value = receipt.course || '';
-  $('review-method').value = '';
+  $('review-form').elements.method.value = 'Yape';
   $('review-amount').value = receipt.cents ? (receipt.cents / 100).toFixed(2) : '';
   showError('review-error');
   $('review-dialog').showModal();
@@ -810,7 +825,7 @@ function renderReviews(receipts, message = '') {
 async function refreshReviews() {
   const version = ++reviewFetch;
   if (!whatsappLinked) {
-    renderReviews([], 'Vincula este dispositivo en WhatsApp automático para revisar pagos.');
+    renderReviews([], 'Vincula este dispositivo en Ajustes → WhatsApp automático para revisar pagos.');
     return;
   }
   try {
@@ -838,14 +853,15 @@ $('review-form').addEventListener('submit', async event => {
   const cents = parseCents($('review-amount').value);
   if (!cents) { showError('review-error', 'Ingresa un monto mayor que cero.'); return; }
   const { id } = reviewing;
-  const method = $('review-method').value;
+  const method = form.elements.method.value;
   const course = $('review-course').value;
   setBusy(form, true);
   showError('review-error');
   try {
-    const { date } = await whatsappRequest('confirm', { id, method, course, cents });
+    const { date, delivery } = await whatsappRequest('confirm', { id, method, course, cents });
     $('review-dialog').close();
-    notify('Venta confirmada y registrada.');
+    notify(delivery === 'queued' ? 'Venta registrada. Envío del curso en cola para WhatsApp.'
+      : delivery === 'sent' ? 'Venta registrada. El curso ya se envió por WhatsApp.' : 'Venta confirmada y registrada.');
     playSaleOnce(id);
     await refreshReviews();
     await selectDay(date || selected);

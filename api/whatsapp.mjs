@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { readWhatsAppControl, writeWhatsAppMode, writeWhatsAppHeartbeat } from '../lib/sheets.mjs';
-import { confirmPaymentReview, listPendingReviews, queuePaymentReview, validReceipt, validReviewCents, validReviewCourse, validReviewId } from '../lib/reviews.mjs';
+import { confirmPaymentReview, listPendingReviews, markCourseSent, pendingCourseDeliveries, queuePaymentReview, validReceipt, validReviewCents, validReviewCourse, validReviewId } from '../lib/reviews.mjs';
 import { managePush, pushKeys, sendReviewNotice } from '../lib/push.mjs';
 
 const lifetime = 30 * 86400;
@@ -13,7 +13,7 @@ const reply = (data, status = 200, headers = {}) => Response.json(data, {
 
 export function whatsappApi(store = {
   readWhatsAppControl, writeWhatsAppMode, writeWhatsAppHeartbeat,
-  confirmPaymentReview, listPendingReviews, queuePaymentReview, sendReviewNotice,
+  confirmPaymentReview, listPendingReviews, markCourseSent, pendingCourseDeliveries, queuePaymentReview, sendReviewNotice,
 }) {
   return {
     async fetch(req) {
@@ -25,7 +25,7 @@ export function whatsappApi(store = {
       const cookie = (req.headers.get('cookie') || '').match(/(?:^|;\s*)digpro_whatsapp=([^;]+)/)?.[1] || '';
       const [expires, signature] = cookie.split('.');
       const operator = signature && /^\d{10}$/.test(expires) && Number(expires) > now && equal(signature, sign(secret, 'device:' + expires));
-      const agentAction = action === 'sync' || action === 'receipt';
+      const agentAction = ['sync', 'receipt', 'course-sent'].includes(action);
       const agent = agentAction && equal(req.headers.get('authorization') || '', 'Bearer ' + sign(secret, 'digpro:whatsapp:agent:v1'));
       const login = action === 'link' && req.method === 'POST';
       if (!login && (agentAction ? !agent : !operator)) return reply({ error: 'Vincula este dispositivo para usar WhatsApp en DigPro.' }, 401);
@@ -51,7 +51,12 @@ export function whatsappApi(store = {
         if (action === 'sync' && typeof body?.applied === 'boolean' && typeof body.connected === 'boolean') {
           await store.writeWhatsAppHeartbeat(body.applied, body.connected);
           const { desired } = await store.readWhatsAppControl();
-          return reply({ desired });
+          const deliveries = body.connected && body.courseDelivery === true ? await store.pendingCourseDeliveries() : undefined;
+          return reply({ desired, deliveries });
+        }
+        if (action === 'course-sent' && validReviewId(body?.id)) {
+          await store.markCourseSent(body.id);
+          return reply({ ok: true });
         }
         if (action === 'mode' && typeof body?.enabled === 'boolean') {
           await store.writeWhatsAppMode(body.enabled);
@@ -67,14 +72,14 @@ export function whatsappApi(store = {
         }
         if (action === 'confirm' && validReviewId(body?.id) && validReviewCents(body.cents)
             && validReviewCourse(body.course) && ['Yape', 'Plin'].includes(body.method)) {
-          const { found, receipt, date } = await store.confirmPaymentReview(body.id, body.method, body.cents, body.course);
+          const { found, receipt, date, course, cents, delivery } = await store.confirmPaymentReview(body.id, body.method, body.cents, body.course);
           if (!found) return reply({ error: 'El comprobante ya no está disponible.' }, 404);
           if (receipt) {
             await store.sendReviewNotice({ type: 'sale', id: receipt.id, date, title: 'DigPro · Venta confirmada',
-              body: `${body.course} · S/ ${(body.cents / 100).toFixed(2)} 🎉` }, pushKeys(url.origin))
+              body: `${course} · S/ ${(cents / 100).toFixed(2)} 🎉` }, pushKeys(url.origin))
               .catch(error => console.error('DigPro aviso de venta', error.code || error.name));
           }
-          return reply({ ok: true, date });
+          return reply({ ok: true, date, delivery });
         }
         if (action === 'review-push' && body && typeof body === 'object') {
           const keys = pushKeys(url.origin);

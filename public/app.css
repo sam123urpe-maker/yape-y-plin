@@ -178,11 +178,17 @@ form input:not([type="radio"], [type="checkbox"]) { width: 100%; min-width: 0; h
 .review-item .icon-button { grid-column: 2; grid-row: 1 / span 2; }
 .review-select { width: 100%; min-height: 48px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; background: white; color: inherit; font: inherit; }
 #review-form .primary { margin-top: 12px; }
-.whatsapp-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.whatsapp-switch { display: grid; place-items: center; min-width: 52px; min-height: 44px; }
+.whatsapp-panel { background: #ebf8ef; border-color: #b9dfc7; }
+.whatsapp-heading { display: flex; align-items: center; gap: 10px; }
+.whatsapp-icon { display: grid; place-items: center; flex: 0 0 38px; height: 38px; border-radius: 12px; background: #157143; color: var(--white); }
+.whatsapp-summary { flex: 1; min-width: 0; }
+.whatsapp-heading h2 { color: #153e2a; }
+.whatsapp-panel #whatsapp-status, .whatsapp-panel #whatsapp-offers { color: #335a46; }
+.whatsapp-panel #whatsapp-offers { margin-top: 10px; }
+.whatsapp-switch { display: grid; place-items: center; flex: 0 0 48px; min-height: 44px; cursor: pointer; }
 .whatsapp-switch input { appearance: none; display: grid; align-items: center; width: 48px; height: 28px; padding: 3px; margin: 0; border: 0; border-radius: 20px; background: #767089; cursor: pointer; }
 .whatsapp-switch input::before { content: ''; width: 22px; height: 22px; border-radius: 50%; background: white; }
-.whatsapp-switch input:checked { background: var(--purple); }
+.whatsapp-switch input:checked { background: #157143; }
 .whatsapp-switch input:checked::before { justify-self: end; }
 .whatsapp-switch input:disabled { cursor: wait; opacity: .65; }
 .whatsapp-panel form { margin-top: 10px; }

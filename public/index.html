@@ -28,6 +28,7 @@
     <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
     <symbol id="i-bolt" viewBox="0 0 24 24"><path d="m13 2-8 12h6l-1 8 9-12h-6z"/></symbol>
     <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 1-8 8H5l1-4a8 8 0 1 1 14-4Z"/><path d="m12.5 7-2.5 4h4l-2.5 4"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
   </svg>
 
@@ -103,25 +104,9 @@
           <ul class="sales panel" id="sales" hidden></ul>
         </div>
         <div id="pending-sales" hidden>
-          <p class="panel review-status" id="review-status" role="status">Vincula este dispositivo en WhatsApp automático para revisar pagos.</p>
+          <p class="panel review-status" id="review-status" role="status">Vincula este dispositivo en Ajustes → WhatsApp automático para revisar pagos.</p>
           <ul class="sales panel" id="review-list" hidden></ul>
         </div>
-      </section>
-
-      <section class="panel push-panel whatsapp-panel" id="whatsapp-panel" aria-labelledby="whatsapp-title" hidden>
-        <div class="whatsapp-heading">
-          <h2 id="whatsapp-title">WhatsApp automático</h2>
-          <label class="whatsapp-switch" id="whatsapp-control" hidden>
-            <input id="whatsapp-toggle" type="checkbox" role="switch" aria-labelledby="whatsapp-title" aria-describedby="whatsapp-status" disabled>
-          </label>
-        </div>
-        <p id="whatsapp-status" role="status">Prueba privada de WhatsApp.</p>
-        <p id="whatsapp-offers" hidden>El interruptor controla las respuestas. El envío de ofertas se probará por separado.</p>
-        <form id="whatsapp-link" hidden>
-          <label for="whatsapp-code">Código para vincular este dispositivo</label>
-          <input id="whatsapp-code" type="password" autocomplete="off" maxlength="64" required>
-          <button type="submit" class="text-button">Vincular</button>
-        </form>
       </section>
 
       <footer class="dock">
@@ -132,6 +117,24 @@
 
   <dialog id="settings-dialog" class="settings-drawer" aria-labelledby="settings-title">
     <div class="sheet-header"><h2 id="settings-title">Ajustes</h2><button type="button" data-close class="icon-button" aria-label="Cerrar ajustes"><svg><use href="#i-close"/></svg></button></div>
+    <section class="panel push-panel whatsapp-panel" id="whatsapp-panel" aria-labelledby="whatsapp-title" hidden>
+      <div class="whatsapp-heading">
+        <span class="whatsapp-icon" aria-hidden="true"><svg><use href="#i-chat"/></svg></span>
+        <div class="whatsapp-summary">
+          <h2 id="whatsapp-title">WhatsApp automático</h2>
+          <p id="whatsapp-status" role="status">Prueba privada de WhatsApp.</p>
+        </div>
+        <label class="whatsapp-switch" id="whatsapp-control" hidden>
+          <input id="whatsapp-toggle" type="checkbox" role="switch" aria-labelledby="whatsapp-title" aria-describedby="whatsapp-status" disabled>
+        </label>
+      </div>
+      <p id="whatsapp-offers" hidden>El interruptor controla las respuestas. El envío de ofertas se probará por separado.</p>
+      <form id="whatsapp-link" hidden>
+        <label for="whatsapp-code">Código para vincular este dispositivo</label>
+        <input id="whatsapp-code" type="password" autocomplete="off" maxlength="64" required>
+        <button type="submit" class="text-button">Vincular</button>
+      </form>
+    </section>
     <section class="panel push-panel" id="review-push-panel" aria-labelledby="review-push-title">
       <h2 id="review-push-title">Notificaciones de ventas</h2>
       <p id="review-push-status" role="status">Abre DigPro desde la pantalla de inicio de tu iPhone y vincula este dispositivo para recibir avisos.</p>
@@ -142,8 +145,11 @@
     </section>
     <section class="panel push-panel" aria-labelledby="sale-sound-title">
       <h2 id="sale-sound-title">Sonido de ventas</h2>
-      <p>Se reproduce al confirmar una venta de WhatsApp con DigPro abierto.</p>
-      <button type="button" class="text-button" id="sale-sound-toggle" aria-pressed="false">Activar y probar sonido</button>
+      <p id="sale-sound-status" role="status">Tono reforzado para ventas de WhatsApp confirmadas con DigPro abierto.</p>
+      <div class="push-actions">
+        <button type="button" class="text-button" id="sale-sound-toggle" aria-pressed="false">Activar y probar sonido</button>
+        <button type="button" class="text-button" id="sale-sound-test" hidden>Probar sonido</button>
+      </div>
     </section>
     <section class="panel push-panel" id="push-panel" aria-labelledby="push-title" hidden>
       <h2 id="push-title">Aviso de medianoche</h2>
@@ -161,12 +167,17 @@
       <p class="form-copy" id="review-customer"></p>
       <label for="review-course">Curso</label>
       <select id="review-course" class="review-select" required><option value="">Elige el curso</option><option>Rituales</option><option>Cócteles</option></select>
-      <label for="review-method">Medio de pago</label>
-      <select id="review-method" class="review-select" required><option value="">Elige el medio</option><option>Yape</option><option>Plin</option></select>
+      <fieldset>
+        <legend>¿Por dónde pagaron?</legend>
+        <div class="choices methods">
+          <label class="choice"><input type="radio" name="method" value="Yape" checked><img src="./assets/yape.png" width="42" height="42" alt=""><span>Yape</span></label>
+          <label class="choice"><input type="radio" name="method" value="Plin"><img src="./assets/plin.png" width="42" height="42" alt=""><span>Plin</span></label>
+        </div>
+      </fieldset>
       <label for="review-amount">Monto recibido</label>
       <div class="money-field"><span>S/</span><input id="review-amount" inputmode="decimal" maxlength="9" required></div>
       <p class="error" id="review-error" role="alert" hidden></p>
-      <button type="submit" class="primary"><svg aria-hidden="true"><use href="#i-check"/></svg>Confirmar venta</button>
+      <button type="submit" class="primary"><svg aria-hidden="true"><use href="#i-check"/></svg>Confirmar y enviar curso</button>
     </form>
   </dialog>
 
