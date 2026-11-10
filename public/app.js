@@ -5,6 +5,7 @@ const filePreview = location.protocol === 'file:';
 const dayStrip = $('week-days');
 const dayStripBatch = 28;
 const saleForm = $('sale-form');
+const saleEditForm = $('sale-edit-form');
 const adsForm = $('ads-form');
 const formatter = new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const limaClock = new Intl.DateTimeFormat('en-GB', {
@@ -39,6 +40,7 @@ let loaded = null;
 let daily = new Map();
 let loadVersion = 0;
 let toastTimer;
+let editingSale;
 const pending = new WeakMap();
 const push = { started: false, registration: null, publicKey: null, subscription: null, enabled: false };
 
@@ -241,7 +243,15 @@ function renderSummary(day) {
     copy.append(name, meta);
     const amount = document.createElement('strong');
     amount.textContent = money(sale.cents);
-    item.append(icon, copy, amount);
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'sale-edit';
+    edit.setAttribute('aria-label', 'Editar venta de ' + sale.course + ', ' + meta.textContent + ', ' + amount.textContent);
+    const editLabel = document.createElement('span');
+    editLabel.textContent = 'Editar';
+    edit.append(amount, editLabel);
+    edit.addEventListener('click', () => openSaleEdit(sale, day.date));
+    item.append(icon, copy, edit);
     return item;
   });
   $('sales').replaceChildren(...list);
@@ -434,12 +444,15 @@ function setBusy(form, busy) {
 
 async function save(form, data, errorId, message) {
   if (form.dataset.busy === 'true') return;
-  const key = JSON.stringify(data);
-  if (pending.get(form)?.key !== key) pending.set(form, { key, id: crypto.randomUUID() });
+  if (!Object.hasOwn(data, 'id')) {
+    const key = JSON.stringify(data);
+    if (pending.get(form)?.key !== key) pending.set(form, { key, id: crypto.randomUUID() });
+    data = { ...data, id: pending.get(form).id };
+  }
   setBusy(form, true);
   showError(errorId);
   try {
-    await api('', { ...data, id: pending.get(form).id });
+    await api('', data);
     pending.delete(form);
     form.closest('dialog').close();
     notify(message);
@@ -450,6 +463,44 @@ async function save(form, data, errorId, message) {
     setBusy(form, false);
   }
 }
+
+function showDeleteConfirmation(confirming) {
+  $('sale-edit-fields').hidden = confirming;
+  $('sale-delete-confirmation').hidden = !confirming;
+  showError('sale-edit-error');
+}
+
+function openSaleEdit(sale, date) {
+  editingSale = { id: sale.id, date };
+  $('sale-edit-summary').textContent = [sale.course, sale.method, formatSaleTime(sale.time), money(sale.cents)].join(' · ');
+  $('sale-edit-price').value = (sale.cents / 100).toFixed(2);
+  showDeleteConfirmation(false);
+  $('sale-edit-dialog').showModal();
+}
+
+$('start-sale-delete').addEventListener('click', () => {
+  showDeleteConfirmation(true);
+  $('cancel-sale-delete').focus();
+});
+$('cancel-sale-delete').addEventListener('click', () => {
+  showDeleteConfirmation(false);
+  $('start-sale-delete').focus();
+});
+saleEditForm.addEventListener('submit', event => {
+  event.preventDefault();
+  if (event.submitter?.value === 'delete') {
+    save(saleEditForm, { ...editingSale, kind: 'delete-sale' }, 'sale-edit-error', 'Venta eliminada.');
+    return;
+  }
+  const price = $('sale-edit-price');
+  const cents = parseCents(price.value);
+  if (!cents) {
+    showError('sale-edit-error', 'Ingresa un pago mayor que cero con hasta dos decimales.');
+    price.focus();
+    return;
+  }
+  save(saleEditForm, { ...editingSale, kind: 'update-sale', cents }, 'sale-edit-error', 'Precio actualizado en Google Sheets.');
+});
 
 $('previous').addEventListener('click', () => selectDay(shift(selected, -1)));
 $('next').addEventListener('click', () => selectDay(shift(selected, 1)));

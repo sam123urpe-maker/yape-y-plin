@@ -181,6 +181,27 @@
     </form>
   </dialog>
 
+  <dialog id="sale-edit-dialog" aria-labelledby="sale-edit-title">
+    <form id="sale-edit-form">
+      <div class="sheet-header"><h2 id="sale-edit-title">Editar venta</h2><button type="button" data-close class="icon-button" aria-label="Cerrar"><svg><use href="#i-close"/></svg></button></div>
+      <p class="form-copy" id="sale-edit-summary"></p>
+      <p class="error" id="sale-edit-error" role="alert" hidden></p>
+      <div id="sale-edit-fields">
+        <label for="sale-edit-price">Nuevo precio</label>
+        <div class="money-field"><span>S/</span><input id="sale-edit-price" inputmode="decimal" maxlength="9" required></div>
+        <button type="submit" class="primary">Guardar precio</button>
+        <button type="button" id="start-sale-delete" class="delete-sale-link">Eliminar venta</button>
+      </div>
+      <div id="sale-delete-confirmation" hidden>
+        <p class="form-copy">¿Eliminar esta venta? Se descontará de los totales de DigPro.</p>
+        <div class="choices">
+          <button type="button" id="cancel-sale-delete" class="icon-button">Cancelar</button>
+          <button type="submit" value="delete" class="primary danger" formnovalidate>Confirmar eliminación</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="ads-dialog" aria-labelledby="ads-title">
     <form id="ads-form">
       <div class="sheet-header"><div><p class="eyebrow" id="ads-date"></p><h2 id="ads-title">Publicidad del día</h2></div><button type="button" data-close class="icon-button" aria-label="Cerrar"><svg><use href="#i-close"/></svg></button></div>

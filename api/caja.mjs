@@ -1,5 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
-import { appendOnce, readDay } from '../lib/sheets.mjs';
+import { appendOnce, changeSale, readDay } from '../lib/sheets.mjs';
 import { managePush, pushKeys } from '../lib/push.mjs';
 
 const responseHeaders = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
@@ -83,6 +83,18 @@ async function handler(req) {
     }
 
     const { id, date, time, method, course, promotion, cents, kind } = data;
+    if (kind === 'update-sale' || kind === 'delete-sale') {
+      const removing = kind === 'delete-sale';
+      const hasId = (typeof id === 'string' && id.length > 0) || Number.isFinite(id);
+      if (!validDate(date) || !hasId) return reply({ error: 'Revisa la fecha y la venta.' }, 400);
+      if (!removing && (!Number.isInteger(cents) || cents <= 0 || cents > 99999999)) {
+        return reply({ error: 'Ingresa un pago mayor que cero con hasta dos decimales.' }, 400);
+      }
+      if (!(await changeSale(id, date, removing ? undefined : cents))) {
+        return reply({ error: 'La venta ya no está disponible.' }, 404);
+      }
+      return reply({ ok: true });
+    }
     if (!validDate(date) || typeof id !== 'string' || !idPattern.test(id) ||
       !Number.isInteger(cents) || cents < 0 || cents > 99999999) {
       return reply({ error: 'Revisa la fecha y el monto.' }, 400);
