@@ -784,9 +784,23 @@ function openReview(receipt) {
   $('review-course').value = receipt.course || '';
   $('review-form').elements.method.value = 'Yape';
   $('review-amount').value = receipt.cents ? (receipt.cents / 100).toFixed(2) : '';
+  $('review-delivered').checked = receipt.alreadyDelivered === true;
+  updateReviewDelivery();
   showError('review-error');
   $('review-dialog').showModal();
 }
+
+function updateReviewDelivery() {
+  $('review-form').querySelector('[type="submit"]').lastChild.textContent = $('review-delivered').checked
+    ? 'Registrar venta sin reenviar' : 'Confirmar y enviar curso';
+}
+$('review-delivered').addEventListener('change', updateReviewDelivery);
+$('review-course').addEventListener('change', () => {
+  if (reviewing?.alreadyDelivered) {
+    $('review-delivered').checked = $('review-course').value === reviewing.course;
+    updateReviewDelivery();
+  }
+});
 
 function renderReviews(receipts, message = '') {
   $('review-count').textContent = receipts.length;
@@ -802,7 +816,8 @@ function renderReviews(receipts, message = '') {
     const name = document.createElement('strong');
     name.textContent = 'Cliente +' + receipt.phone;
     const details = document.createElement('p');
-    details.textContent = [receipt.course || 'Curso por identificar', receipt.cents ? money(receipt.cents) : 'Monto por revisar', reviewDate.format(new Date(receipt.receivedAt))].join(' · ');
+    details.textContent = [receipt.course || 'Curso por identificar', receipt.cents ? money(receipt.cents) : 'Monto por revisar',
+      reviewDate.format(new Date(receipt.receivedAt)), ...(receipt.alreadyDelivered ? ['Curso ya enviado'] : [])].join(' · ');
     info.append(name, details);
     const link = document.createElement('a');
     link.className = 'text-button';
@@ -855,13 +870,14 @@ $('review-form').addEventListener('submit', async event => {
   const { id } = reviewing;
   const method = form.elements.method.value;
   const course = $('review-course').value;
+  const alreadyDelivered = $('review-delivered').checked;
   setBusy(form, true);
   showError('review-error');
   try {
-    const { date, delivery } = await whatsappRequest('confirm', { id, method, course, cents });
+    const { date, delivery } = await whatsappRequest('confirm', { id, method, course, cents, alreadyDelivered });
     $('review-dialog').close();
     notify(delivery === 'queued' ? 'Venta registrada. Envío del curso en cola para WhatsApp.'
-      : delivery === 'sent' ? 'Venta registrada. El curso ya se envió por WhatsApp.' : 'Venta confirmada y registrada.');
+      : delivery === 'sent' || delivery === 'manual' ? 'Venta registrada. El curso ya se envió por WhatsApp.' : 'Venta confirmada y registrada.');
     playSaleOnce(id);
     await refreshReviews();
     await selectDay(date || selected);
@@ -895,7 +911,7 @@ async function refreshWhatsApp() {
     whatsappToggle.disabled = !connected || desired !== applied;
     nextWhatsAppRefresh = Date.now() + (connected && desired !== applied ? 5000 : 30000);
     $('whatsapp-status').textContent = !connected ? 'Esperando conexión del servidor.' : desired !== applied
-      ? 'Aplicando el cambio en el servidor…' : desired ? 'Respuestas automáticas activas · Prueba privada' : 'Respuestas manuales · Prueba privada';
+      ? 'Aplicando el cambio en el servidor…' : desired ? 'Respuestas automáticas activas' : 'Respuestas manuales';
     void refreshReviews();
     if (!wasLinked) void refreshReviewPush();
   } catch (error) {

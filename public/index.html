@@ -122,13 +122,13 @@
         <span class="whatsapp-icon" aria-hidden="true"><svg><use href="#i-chat"/></svg></span>
         <div class="whatsapp-summary">
           <h2 id="whatsapp-title">WhatsApp automático</h2>
-          <p id="whatsapp-status" role="status">Prueba privada de WhatsApp.</p>
+          <p id="whatsapp-status" role="status">Consultando WhatsApp.</p>
         </div>
         <label class="whatsapp-switch" id="whatsapp-control" hidden>
           <input id="whatsapp-toggle" type="checkbox" role="switch" aria-labelledby="whatsapp-title" aria-describedby="whatsapp-status" disabled>
         </label>
       </div>
-      <p id="whatsapp-offers" hidden>El interruptor controla las respuestas. El envío de ofertas se probará por separado.</p>
+      <p id="whatsapp-offers" hidden>Las ofertas de seguimiento siguen activas.</p>
       <form id="whatsapp-link" hidden>
         <label for="whatsapp-code">Código para vincular este dispositivo</label>
         <input id="whatsapp-code" type="password" autocomplete="off" maxlength="64" required>
@@ -176,6 +176,7 @@
       </fieldset>
       <label for="review-amount">Monto recibido</label>
       <div class="money-field"><span>S/</span><input id="review-amount" inputmode="decimal" maxlength="9" required></div>
+      <label class="delivered-option"><input id="review-delivered" type="checkbox"><span>Ya envié el curso por WhatsApp</span></label>
       <p class="error" id="review-error" role="alert" hidden></p>
       <button type="submit" class="primary"><svg aria-hidden="true"><use href="#i-check"/></svg>Confirmar y enviar curso</button>
     </form>

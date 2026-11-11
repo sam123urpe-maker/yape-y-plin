@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { readWhatsAppControl, writeWhatsAppMode, writeWhatsAppHeartbeat } from '../lib/sheets.mjs';
-import { confirmPaymentReview, listPendingReviews, markCourseSent, pendingCourseDeliveries, queuePaymentReview, validReceipt, validReviewCents, validReviewCourse, validReviewId } from '../lib/reviews.mjs';
+import { confirmPaymentReview, listPendingReviews, markCourseSent, pendingCourseDeliveries, queuePaymentReview, recordManualCourse, validReceipt, validReviewCents, validReviewCourse, validReviewId } from '../lib/reviews.mjs';
+import { checkReceipt } from '../lib/receipt-check.mjs';
 import { managePush, pushKeys, sendReviewNotice } from '../lib/push.mjs';
 
 const lifetime = 30 * 86400;
@@ -13,7 +14,7 @@ const reply = (data, status = 200, headers = {}) => Response.json(data, {
 
 export function whatsappApi(store = {
   readWhatsAppControl, writeWhatsAppMode, writeWhatsAppHeartbeat,
-  confirmPaymentReview, listPendingReviews, markCourseSent, pendingCourseDeliveries, queuePaymentReview, sendReviewNotice,
+  confirmPaymentReview, listPendingReviews, markCourseSent, pendingCourseDeliveries, queuePaymentReview, recordManualCourse, sendReviewNotice,
 }) {
   return {
     async fetch(req) {
@@ -25,7 +26,7 @@ export function whatsappApi(store = {
       const cookie = (req.headers.get('cookie') || '').match(/(?:^|;\s*)digpro_whatsapp=([^;]+)/)?.[1] || '';
       const [expires, signature] = cookie.split('.');
       const operator = signature && /^\d{10}$/.test(expires) && Number(expires) > now && equal(signature, sign(secret, 'device:' + expires));
-      const agentAction = ['sync', 'receipt', 'course-sent'].includes(action);
+      const agentAction = ['sync', 'receipt', 'course-sent', 'manual-course'].includes(action);
       const agent = agentAction && equal(req.headers.get('authorization') || '', 'Bearer ' + sign(secret, 'digpro:whatsapp:agent:v1'));
       const login = action === 'link' && req.method === 'POST';
       if (!login && (agentAction ? !agent : !operator)) return reply({ error: 'Vincula este dispositivo para usar WhatsApp en DigPro.' }, 401);
@@ -58,12 +59,30 @@ export function whatsappApi(store = {
           await store.markCourseSent(body.id);
           return reply({ ok: true });
         }
+        if (action === 'manual-course' && validReviewId(body?.id) && /^[1-9]\d{9,14}$/.test(body.phone)
+            && validReviewCourse(body.course) && typeof body.sentAt === 'string'
+            && Date.parse(body.sentAt) >= Date.now() - 86400_000 && Date.parse(body.sentAt) <= Date.now() + 1000) {
+          await store.recordManualCourse(body);
+          return reply({ ok: true });
+        }
         if (action === 'mode' && typeof body?.enabled === 'boolean') {
           await store.writeWhatsAppMode(body.enabled);
           return reply({ ok: true });
         }
         if (action === 'receipt' && validReceipt(body)) {
-          if (await store.queuePaymentReview(body)) {
+          const created = await store.queuePaymentReview(body);
+          const checked = checkReceipt(body, body.evidence);
+          if (checked) {
+            const result = await store.confirmPaymentReview(body.id, checked.method, body.cents, body.course, { proof: checked.proof });
+            if (result.receipt) {
+              await store.sendReviewNotice({ type: 'sale', id: body.id, date: result.date,
+                title: 'DigPro · Venta confirmada automáticamente',
+                body: `${body.course} · S/ ${(body.cents / 100).toFixed(2)} 🎉` }, pushKeys(url.origin))
+                .catch(error => console.error('DigPro aviso de venta', error.code || error.name));
+            }
+            if (result.found) return reply({ ok: true, confirmed: true }, 201);
+          }
+          if (created) {
             await store.sendReviewNotice({ type: 'review', id: body.id, title: 'DigPro · Pago por confirmar',
               body: `Un cliente (+${body.phone}) envió un comprobante${body.course ? ' de ' + body.course : ''}.` }, pushKeys(url.origin))
               .catch(error => console.error('DigPro aviso de comprobante', error.code || error.name));
@@ -71,8 +90,9 @@ export function whatsappApi(store = {
           return reply({ ok: true }, 201);
         }
         if (action === 'confirm' && validReviewId(body?.id) && validReviewCents(body.cents)
-            && validReviewCourse(body.course) && ['Yape', 'Plin'].includes(body.method)) {
-          const { found, receipt, date, course, cents, delivery } = await store.confirmPaymentReview(body.id, body.method, body.cents, body.course);
+            && validReviewCourse(body.course) && ['Yape', 'Plin'].includes(body.method)
+            && (body.alreadyDelivered === undefined || typeof body.alreadyDelivered === 'boolean')) {
+          const { found, receipt, date, course, cents, delivery } = await store.confirmPaymentReview(body.id, body.method, body.cents, body.course, { alreadyDelivered: body.alreadyDelivered });
           if (!found) return reply({ error: 'El comprobante ya no está disponible.' }, 404);
           if (receipt) {
             await store.sendReviewNotice({ type: 'sale', id: receipt.id, date, title: 'DigPro · Venta confirmada',

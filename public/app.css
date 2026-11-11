@@ -178,6 +178,8 @@ form input:not([type="radio"], [type="checkbox"]) { width: 100%; min-width: 0; h
 .review-item .icon-button { grid-column: 2; grid-row: 1 / span 2; }
 .review-select { width: 100%; min-height: 48px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; background: white; color: inherit; font: inherit; }
 #review-form .primary { margin-top: 12px; }
+.delivered-option { display: flex; align-items: center; gap: 10px; min-height: 48px; margin-top: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; font-size: .84rem; cursor: pointer; }
+.delivered-option input { width: 22px; height: 22px; flex: 0 0 22px; accent-color: var(--purple); cursor: pointer; }
 .whatsapp-panel { background: #ebf8ef; border-color: #b9dfc7; }
 .whatsapp-heading { display: flex; align-items: center; gap: 10px; }
 .whatsapp-icon { display: grid; place-items: center; flex: 0 0 38px; height: 38px; border-radius: 12px; background: #157143; color: var(--white); }
