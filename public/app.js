@@ -348,6 +348,26 @@ function notify(message) {
   toastTimer = setTimeout(() => { $('toast').hidden = true; }, 3000);
 }
 
+$('refresh-data').addEventListener('click', async event => {
+  const button = event.currentTarget;
+  if (button.disabled) return;
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  button.setAttribute('aria-label', 'Actualizando datos');
+  try {
+    const date = limaNow().date;
+    const followToday = selected === today;
+    today = date;
+    whatsappAvailable = true;
+    await Promise.all([selectDay(followToday ? today : selected), refreshWhatsApp()]);
+    if ($('sync').dataset.state === 'ready') notify('Ventas actualizadas.');
+  } finally {
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+    button.setAttribute('aria-label', 'Actualizar datos');
+  }
+});
+
 function updatePush(message = '') {
   $('push-toggle').hidden = !push.registration;
   $('push-toggle').textContent = push.enabled ? 'Desactivar aviso' : 'Activar aviso';
@@ -912,7 +932,7 @@ async function refreshWhatsApp() {
     nextWhatsAppRefresh = Date.now() + (connected && desired !== applied ? 5000 : 30000);
     $('whatsapp-status').textContent = !connected ? 'Esperando conexión del servidor.' : desired !== applied
       ? 'Aplicando el cambio en el servidor…' : desired ? 'Respuestas automáticas activas' : 'Respuestas manuales';
-    void refreshReviews();
+    await refreshReviews();
     if (!wasLinked) void refreshReviewPush();
   } catch (error) {
     if (error.status === 401) {

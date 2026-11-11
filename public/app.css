@@ -25,7 +25,7 @@ button:disabled { cursor: default; opacity: .56; }
 .shell { max-width: 560px; margin-inline: auto; padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(98px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
 .topbar, .brand, .sync, .date-heading, .balance-main, .section-heading, .sheet-header, .month-nav { display: flex; align-items: center; }
 .topbar, .date-heading, .balance-main, .section-heading, .sheet-header, .month-nav { justify-content: space-between; gap: 12px; }
-.topbar { margin-bottom: 32px; }
+.topbar { margin-bottom: 32px; flex-wrap: wrap; }
 .brand { gap: 10px; }
 .brand-icon { display: block; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 14px; background: #000; object-fit: cover; }
 .brand h1 { font-size: 1.11rem; letter-spacing: -.035em; line-height: 1.18; }
@@ -164,7 +164,12 @@ form input:not([type="radio"], [type="checkbox"]) { width: 100%; min-width: 0; h
 .push-panel p { color: var(--muted); margin-top: 4px; font-size: .8rem; line-height: 1.4; }
 .push-actions { display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .push-actions .text-button { padding-inline: 0; font-size: .82rem; }
-.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.refresh-button[aria-busy="true"] svg { animation: refresh-spin .9s linear infinite; }
+@keyframes refresh-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .refresh-button[aria-busy="true"] svg { animation: none; }
+}
 .settings-drawer { position: fixed; inset: 0 0 0 auto; margin: 0; width: min(90vw, 390px); max-width: none; height: 100dvh; max-height: none; padding: max(18px, env(safe-area-inset-top)) 16px 24px; border-radius: 20px 0 0 20px; }
 .sales-views { display: grid; grid-template-columns: 1fr 1.6fr; gap: 5px; margin-bottom: 9px; padding: 4px; background: var(--tint); border-radius: 12px; }
 .sales-views button { min-height: 44px; padding: 4px 8px; border-radius: 9px; background: none; color: var(--purple); font-size: .83rem; font-weight: 750; }

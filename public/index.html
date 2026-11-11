@@ -30,6 +30,7 @@
     <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
     <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 1-8 8H5l1-4a8 8 0 1 1 14-4Z"/><path d="m12.5 7-2.5 4h4l-2.5 4"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9"/></symbol>
   </svg>
 
   <main class="shell">
@@ -37,6 +38,7 @@
       <div class="brand"><img class="brand-icon" src="./assets/caja-ios.png" width="44" height="44" alt=""><div><h1>DigPro</h1><p>Rituales y Cócteles</p></div></div>
       <div class="topbar-actions">
         <span class="sync" id="sync" data-state="loading"><i></i><span>Conectando</span></span>
+        <button type="button" class="icon-button refresh-button" id="refresh-data" aria-label="Actualizar datos" title="Actualizar datos"><svg aria-hidden="true"><use href="#i-refresh"/></svg></button>
         <button type="button" class="icon-button" id="open-settings" aria-label="Abrir menú de DigPro" aria-haspopup="dialog"><svg aria-hidden="true"><use href="#i-menu"/></svg></button>
       </div>
     </header>
