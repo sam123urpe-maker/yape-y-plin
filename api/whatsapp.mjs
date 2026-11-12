@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { readWhatsAppControl, writeWhatsAppMode, writeWhatsAppHeartbeat } from '../lib/sheets.mjs';
-import { confirmPaymentReview, listPendingReviews, markCourseSent, pendingCourseDeliveries, queuePaymentReview, recordManualCourse, validReceipt, validReviewCents, validReviewCourse, validReviewId } from '../lib/reviews.mjs';
+import { confirmPaymentReview, dismissPaymentReview, dismissedPaymentReviews, listPendingReviews, markCourseSent, pendingCourseDeliveries, queuePaymentReview, recordManualCourse, validReceipt, validReviewCents, validReviewCourse, validReviewId } from '../lib/reviews.mjs';
 import { checkReceipt } from '../lib/receipt-check.mjs';
 import { managePush, pushKeys, sendReviewNotice } from '../lib/push.mjs';
 
@@ -14,7 +14,7 @@ const reply = (data, status = 200, headers = {}) => Response.json(data, {
 
 export function whatsappApi(store = {
   readWhatsAppControl, writeWhatsAppMode, writeWhatsAppHeartbeat,
-  confirmPaymentReview, listPendingReviews, markCourseSent, pendingCourseDeliveries, queuePaymentReview, recordManualCourse, sendReviewNotice,
+  confirmPaymentReview, dismissPaymentReview, dismissedPaymentReviews, listPendingReviews, markCourseSent, pendingCourseDeliveries, queuePaymentReview, recordManualCourse, sendReviewNotice,
 }) {
   return {
     async fetch(req) {
@@ -53,7 +53,8 @@ export function whatsappApi(store = {
           await store.writeWhatsAppHeartbeat(body.applied, body.connected);
           const { desired } = await store.readWhatsAppControl();
           const deliveries = body.connected && body.courseDelivery === true ? await store.pendingCourseDeliveries() : undefined;
-          return reply({ desired, deliveries });
+          const discarded = body.reviewDismissals === true ? await store.dismissedPaymentReviews() : undefined;
+          return reply({ desired, deliveries, discarded });
         }
         if (action === 'course-sent' && validReviewId(body?.id)) {
           await store.markCourseSent(body.id);
@@ -67,6 +68,12 @@ export function whatsappApi(store = {
         }
         if (action === 'mode' && typeof body?.enabled === 'boolean') {
           await store.writeWhatsAppMode(body.enabled);
+          return reply({ ok: true });
+        }
+        if (action === 'dismiss' && validReviewId(body?.id)) {
+          const { found, confirmed } = await store.dismissPaymentReview(body.id);
+          if (confirmed) return reply({ error: 'Este pago ya fue confirmado. Actualiza la lista de ventas.' }, 409);
+          if (!found) return reply({ error: 'El comprobante ya no está disponible.' }, 404);
           return reply({ ok: true });
         }
         if (action === 'receipt' && validReceipt(body)) {

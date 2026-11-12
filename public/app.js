@@ -561,7 +561,7 @@ $('back-today').addEventListener('click', () => {
   selectDay(today);
 });
 for (const dialog of document.querySelectorAll('dialog')) {
-  dialog.querySelector('[data-close]').addEventListener('click', () => dialog.close());
+  for (const close of dialog.querySelectorAll('[data-close]')) close.addEventListener('click', () => dialog.close());
   dialog.addEventListener('cancel', event => {
     if (dialog.querySelector('[data-busy="true"]')) event.preventDefault();
   });
@@ -665,6 +665,7 @@ let reviewPushEnabled = false;
 let reviewPushBusy = false;
 let reviewFetch = 0;
 let reviewing;
+let discardingReview;
 const reviewDate = new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', dateStyle: 'short', timeStyle: 'short' });
 const reviewLink = new URLSearchParams(location.search).get('por-confirmar');
 const reviewDraft = 'Hola 😊 Espera un momento, por favor. Voy a verificar tu pago.';
@@ -810,6 +811,34 @@ function openReview(receipt) {
   $('review-dialog').showModal();
 }
 
+function openDiscardReview(receipt) {
+  discardingReview = receipt;
+  $('discard-review-customer').textContent = 'Cliente +' + receipt.phone + (receipt.course ? ' · ' + receipt.course : '');
+  showError('discard-review-error');
+  $('discard-review-dialog').showModal();
+}
+
+$('discard-review-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (form.dataset.busy === 'true' || !discardingReview) return;
+  const { id } = discardingReview;
+  setBusy(form, true);
+  showError('discard-review-error');
+  try {
+    await whatsappRequest('dismiss', { id });
+    $('discard-review-dialog').close();
+    discardingReview = null;
+    notify('Comprobante descartado.');
+    await refreshReviews();
+  } catch (error) {
+    showError('discard-review-error', error.message);
+    if ([404, 409].includes(error.status)) await refreshReviews();
+  } finally {
+    setBusy(form, false);
+  }
+});
+
 function updateReviewDelivery() {
   $('review-form').querySelector('[type="submit"]').lastChild.textContent = $('review-delivered').checked
     ? 'Registrar venta sin reenviar' : 'Confirmar y enviar curso';
@@ -851,7 +880,17 @@ function renderReviews(receipts, message = '') {
     check.setAttribute('aria-label', 'Confirmar pago de +' + receipt.phone);
     check.innerHTML = '<svg aria-hidden="true"><use href="#i-check"/></svg>';
     check.addEventListener('click', () => openReview(receipt));
-    row.append(info, link, check);
+    const discard = document.createElement('button');
+    discard.type = 'button';
+    discard.className = 'icon-button review-discard';
+    discard.setAttribute('aria-label', 'Descartar comprobante de +' + receipt.phone);
+    discard.title = 'Descartar comprobante';
+    discard.innerHTML = '<svg aria-hidden="true"><use href="#i-trash"/></svg>';
+    discard.addEventListener('click', () => openDiscardReview(receipt));
+    const actions = document.createElement('div');
+    actions.className = 'review-actions';
+    actions.append(check, discard);
+    row.append(info, link, actions);
     return row;
   });
   $('review-list').replaceChildren(...entries);

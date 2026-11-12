@@ -180,7 +180,9 @@ form input:not([type="radio"], [type="checkbox"]) { width: 100%; min-width: 0; h
 .review-item + .review-item { border-top: 1px solid var(--line); }
 .review-item p { color: var(--muted); font-size: .8rem; margin-top: 3px; }
 .review-item .text-button { justify-self: start; min-height: 40px; padding-inline: 0; text-decoration: none; }
-.review-item .icon-button { grid-column: 2; grid-row: 1 / span 2; }
+.review-actions { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 6px; }
+.review-discard { color: #922c24; background: #fff2ee; }
+.discard-actions { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; margin-top: 16px; }
 .review-select { width: 100%; min-height: 48px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; background: white; color: inherit; font: inherit; }
 #review-form .primary { margin-top: 12px; }
 .delivered-option { display: flex; align-items: center; gap: 10px; min-height: 48px; margin-top: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; font-size: .84rem; cursor: pointer; }

@@ -31,6 +31,7 @@
     <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 1-8 8H5l1-4a8 8 0 1 1 14-4Z"/><path d="m12.5 7-2.5 4h4l-2.5 4"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
     <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6m4-6v6"/></symbol>
   </svg>
 
   <main class="shell">
@@ -161,6 +162,16 @@
         <button type="button" id="push-test" class="text-button" hidden>Enviar prueba</button>
       </div>
     </section>
+  </dialog>
+
+  <dialog id="discard-review-dialog" aria-labelledby="discard-review-title" aria-describedby="discard-review-copy">
+    <form id="discard-review-form">
+      <div class="sheet-header"><h2 id="discard-review-title">Descartar comprobante</h2><button type="button" data-close class="icon-button" aria-label="Cerrar"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      <p class="form-copy" id="discard-review-customer"></p>
+      <p class="form-copy" id="discard-review-copy">Se quitará de Ventas por confirmar. No se registrará una venta ni se enviará el curso.</p>
+      <p class="error" id="discard-review-error" role="alert" hidden></p>
+      <div class="discard-actions"><button type="button" data-close class="text-button">Cancelar</button><button type="submit" class="primary danger">Descartar comprobante</button></div>
+    </form>
   </dialog>
 
   <dialog id="review-dialog" aria-labelledby="review-title">
