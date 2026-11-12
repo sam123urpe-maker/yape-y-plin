@@ -36,6 +36,10 @@ Si el paso 3 devuelve `SERVICE_DISABLED`, habilita [Google Sheets API en el proy
 
 Vercel ejecuta el cierre a las 05:00 UTC, que son las 12:00 a. m. en Lima. El cierre incluye ventas menos publicidad del día que acaba de terminar. Vercel Pro programa por minuto. En Hobby la ejecución puede llegar hasta 59 minutos después de la hora prevista. El aviso se puede recibir con DigPro cerrada.
 
+En **Ajustes → Sonido de ventas**, activa y prueba el MP3 con DigPro abierta. Se reproduce como un efecto breve mediante Web Audio, tanto al confirmar con el check como al detectar una venta automática. Cada venta suena una sola vez. Cuando el efecto puede sonar en la página visible, la notificación solicita omitir el tono del sistema; si el efecto no está habilitado o el navegador lo bloquea, conserva el tono normal. Una consulta cada 15 segundos detecta ventas nuevas mientras la app está visible si no llega el aviso push; no reproduce las ventas antiguas al abrir la app.
+
+Con la pantalla bloqueada o usando otra app, iOS controla el sonido de la notificación web y no permite usar este MP3 como tono personalizado. El efecto de la página requiere una interacción al abrir DigPro; toca **Probar sonido** si no suena. Después de actualizar la web, cierra todas sus ventanas y vuelve a abrirla para cargar también el nuevo service worker.
+
 Si cambias de hoja, configura `SHEETS_ID` en el entorno local y en Vercel. Ejecuta la preparación de pestañas para esa hoja antes de usarla.
 
 [Documentación de variables de entorno de Vercel](https://vercel.com/docs/environment-variables)

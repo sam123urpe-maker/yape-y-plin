@@ -316,6 +316,7 @@ async function selectDay(date) {
     $('new-sale').disabled = false;
     drawDayStrip(wasHidden);
     renderSummary(day);
+    observeConfirmedSales(day);
     status('ready', 'En línea');
     void initPush();
   } catch (error) {
@@ -669,10 +670,13 @@ let discardingReview;
 const reviewDate = new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', dateStyle: 'short', timeStyle: 'short' });
 const reviewLink = new URLSearchParams(location.search).get('por-confirmar');
 const reviewDraft = 'Hola 😊 Espera un momento, por favor. Voy a verificar tu pago.';
-const saleSound = new Audio('./assets/venta-confirmada.mp3?v=2');
+const saleSound = new DigProSaleSound('./assets/venta-confirmada.mp3?v=2');
 const saleSoundStatus = $('sale-sound-status');
 const saleSoundDescription = saleSoundStatus.textContent;
 const playedSales = new Set();
+let knownSaleDay = null;
+let knownSales = new Set();
+let saleRefreshBusy = false;
 let soundEnabled = false;
 try { soundEnabled = localStorage.getItem('digpro-sale-sound') === 'on'; } catch { /* Storage can be unavailable. */ }
 
@@ -753,15 +757,50 @@ function updateSaleSound() {
   $('sale-sound-test').hidden = !soundEnabled;
 }
 
-function playSaleSound() {
-  saleSound.currentTime = 0;
-  return saleSound.play();
+async function playSaleSound() {
+  if (!await saleSound.arm() || !saleSound.play()) throw new Error('Toca para habilitar el sonido.');
 }
 
 function playSaleOnce(id) {
-  if (!soundEnabled || document.hidden || playedSales.has(id)) return;
+  if (!soundEnabled || document.hidden) return false;
+  if (playedSales.has(id)) return true;
+  if (!saleSound.play()) return false;
   playedSales.add(id);
-  void playSaleSound().catch(() => playedSales.delete(id));
+  if (playedSales.size > 512) playedSales.delete(playedSales.values().next().value);
+  return true;
+}
+
+function observeConfirmedSales(day) {
+  if (document.hidden || day.date !== limaNow().date) return;
+  const sales = day.sales.filter(sale => /^whatsapp-[a-f0-9-]{36}$/.test(sale.id));
+  if (knownSaleDay !== day.date) {
+    knownSaleDay = day.date;
+    knownSales = new Set(sales.map(sale => sale.id));
+    return; // Existing sales are a baseline, not new notifications.
+  }
+  for (const sale of sales) {
+    if (knownSales.has(sale.id)) continue;
+    knownSales.add(sale.id);
+    const id = sale.id.slice('whatsapp-'.length);
+    if (playSaleOnce(id)) notify('Venta confirmada · ' + sale.course + ' · ' + money(sale.cents) + ' 🎉');
+  }
+}
+
+async function refreshConfirmedSales() {
+  if (saleRefreshBusy || !soundEnabled || !whatsappLinked || document.hidden || filePreview) return;
+  saleRefreshBusy = true;
+  try {
+    const date = limaNow().date;
+    const day = await api('?date=' + date);
+    observeConfirmedSales(day);
+    if (selected === date && loaded?.date === date && !document.querySelector('dialog[open]') && !document.hidden) {
+      loaded = day;
+      daily = new Map(day.daily.map(totals => [totals.date, totals]));
+      renderSummary(day);
+      drawDayStrip(false);
+    }
+  } catch { /* Push remains available when a background refresh fails. */ }
+  finally { saleRefreshBusy = false; }
 }
 
 async function testSaleSound() {
@@ -778,7 +817,7 @@ async function testSaleSound() {
 $('sale-sound-toggle').addEventListener('click', async () => {
   if (soundEnabled) {
     soundEnabled = false;
-    saleSound.pause();
+    saleSound.stop();
     saleSoundStatus.textContent = saleSoundDescription;
   } else {
     soundEnabled = await testSaleSound();
@@ -788,6 +827,21 @@ $('sale-sound-toggle').addEventListener('click', async () => {
 });
 $('sale-sound-test').addEventListener('click', () => void testSaleSound());
 updateSaleSound();
+
+function armSaleSound() {
+  if (!soundEnabled || document.hidden) return;
+  void saleSound.arm().catch(() => {});
+}
+document.addEventListener('pointerdown', armSaleSound, { passive: true });
+document.addEventListener('keydown', armSaleSound);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    saleSound.stop();
+    knownSaleDay = null; // Do not replay sales already notified while the app was in the background.
+    knownSales.clear();
+  }
+});
+window.addEventListener('pagehide', () => saleSound.stop());
 
 $('open-settings').addEventListener('click', () => {
   $('settings-dialog').showModal();
@@ -948,8 +1002,15 @@ $('review-form').addEventListener('submit', async event => {
 });
 
 navigator.serviceWorker?.addEventListener('message', event => {
+  if (event.data?.type === 'sale-sound') {
+    const { id, deadline } = event.data;
+    const played = /^[a-f0-9-]{36}$/.test(id) && Date.now() < deadline && playSaleOnce(id);
+    event.ports?.[0]?.postMessage({ id, played: Boolean(played) });
+    return;
+  }
   if (event.data?.type === 'sale') {
-    playSaleOnce(event.data.id);
+    // New workers already coordinated the tone; keep support for old workers.
+    if (!Object.hasOwn(event.data, 'soundHandled')) playSaleOnce(event.data.id);
     if (!document.hidden) void selectDay(selected);
   }
   if (event.data?.type === 'sale' || event.data?.type === 'review') void refreshReviews();
@@ -1036,7 +1097,9 @@ whatsappLink.addEventListener('submit', async event => {
 
 document.addEventListener('visibilitychange', updateToday);
 document.addEventListener('visibilitychange', refreshWhatsApp);
+document.addEventListener('visibilitychange', refreshConfirmedSales);
 setInterval(updateToday, 30000);
+setInterval(refreshConfirmedSales, 15000);
 setInterval(() => { if (whatsappLink.hidden && Date.now() >= nextWhatsAppRefresh) refreshWhatsApp(); }, 5000);
 selectDay(selected);
 refreshWhatsApp();
