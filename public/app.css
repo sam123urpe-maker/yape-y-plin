@@ -14,7 +14,6 @@
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; min-width: 0; }
-body:has(dialog[open]) { overflow: hidden; }
 h1, h2, h3, p { margin: 0; }
 svg { display: block; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .symbols { position: absolute; width: 0; height: 0; overflow: hidden; }
@@ -97,8 +96,8 @@ button:disabled { cursor: default; opacity: .56; }
 .primary.danger:active:not(:disabled) { background: #86271f; }
 .delete-sale-link { display: block; min-height: 44px; margin: 4px auto 0; padding-inline: 12px; border-radius: 9px; background: transparent; color: #922c24; font-weight: 750; }
 #sale-edit-fields .primary { margin-top: 12px; }
-dialog { width: min(100%, 480px); max-width: 100%; max-height: min(94dvh, 740px); margin: auto auto 0; padding: 16px 16px calc(18px + env(safe-area-inset-bottom)); color: var(--ink); border: 1px solid var(--line); border-radius: 24px 24px 0 0; box-shadow: 0 12px 55px #14102844; overscroll-behavior: contain; }
-dialog::backdrop { background: #1d173bc2; }
+dialog { position: fixed; width: min(100%, 480px); max-width: 100%; max-height: min(94dvh, 740px); margin: auto auto 0; padding: 16px 16px calc(18px + env(safe-area-inset-bottom)); color: var(--ink); border: 1px solid var(--line); border-radius: 24px 24px 0 0; box-shadow: 0 12px 55px #14102844; overflow-y: auto; overscroll-behavior: contain; }
+dialog::backdrop { background: #1d173bc2; overflow: hidden; overscroll-behavior: contain; }
 .sheet-header { margin-bottom: 14px; }
 .sheet-header .icon-button { background: #f6f4fa; }
 fieldset { margin: 0 0 12px; padding: 0; border: 0; min-inline-size: 0; }

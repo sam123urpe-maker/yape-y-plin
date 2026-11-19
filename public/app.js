@@ -39,6 +39,7 @@ let historyWeek = monday(selected);
 let loaded = null;
 let daily = new Map();
 let loadVersion = 0;
+let dayRequest = null;
 let toastTimer;
 let editingSale;
 const pending = new WeakMap();
@@ -281,19 +282,33 @@ async function api(query = '', body) {
   return data;
 }
 
-async function selectDay(date) {
+function selectDay(date, { refresh = false } = {}) {
+  // Una actualización en curso se comparte; navegar o guardar sí pide una versión nueva.
+  if (refresh && dayRequest?.date === date) return dayRequest.promise;
+  const request = { date };
+  dayRequest = request;
+  request.promise = loadDay(date).finally(() => {
+    if (dayRequest === request) dayRequest = null;
+  });
+  return request.promise;
+}
+
+async function loadDay(date) {
+  const keepView = loaded?.date === date;
   selected = date;
   drawDayHeading();
   drawDayStrip();
   const version = ++loadVersion;
-  loaded = null;
   $('load-error').hidden = true;
-  $('ads-reminder').hidden = true;
-  $('edit-ads').disabled = true;
-  $('open-calendar').disabled = true;
-  $('new-sale').disabled = true;
-  $('gross').textContent = $('ads').textContent = $('net').textContent = '—';
-  $('net').dataset.negative = false;
+  if (!keepView) {
+    loaded = null;
+    $('ads-reminder').hidden = true;
+    $('edit-ads').disabled = true;
+    $('open-calendar').disabled = true;
+    $('gross').textContent = $('ads').textContent = $('net').textContent = '—';
+    $('net').dataset.negative = false;
+  }
+  $('new-sale').disabled = false;
   if (filePreview) {
     $('file-preview').hidden = false;
     $('new-sale').disabled = false;
@@ -301,11 +316,11 @@ async function selectDay(date) {
     status('loading', 'Vista previa');
     return;
   }
-  empty('Cargando ventas', 'Consultando Google Sheets…');
-  status('loading', 'Conectando');
+  if (!keepView) empty('Cargando ventas', 'Consultando Google Sheets…');
+  status('loading', keepView ? 'Actualizando' : 'Conectando');
   try {
     const day = await api('?date=' + date);
-    if (version !== loadVersion) return;
+    if (version !== loadVersion) return false;
     loaded = day;
     daily = new Map(day.daily.map(totals => [totals.date, totals]));
     const wasHidden = $('dashboard').hidden;
@@ -319,21 +334,23 @@ async function selectDay(date) {
     observeConfirmedSales(day);
     status('ready', 'En línea');
     void initPush();
+    return true;
   } catch (error) {
-    if (version !== loadVersion) return;
+    if (version !== loadVersion) return false;
     if (error.status === 401) {
       $('dashboard').hidden = true;
       $('locked').hidden = false;
       status('loading', 'Acceso privado');
       $('password').focus();
-      return;
+      return false;
     }
     $('load-error-text').textContent = error.message;
     $('load-error').hidden = false;
     $('new-sale').disabled = false;
-    empty('Ventas sin consultar', 'Vuelve a intentar para ver los movimientos del día.');
+    if (!keepView) empty('Ventas sin consultar', 'Vuelve a intentar para ver los movimientos del día.');
     const label = error.status === 503 ? 'Falta configurar' : error.status ? 'Error de conexión' : 'Sin conexión';
     status('error', label);
+    return false;
   }
 }
 
@@ -360,8 +377,9 @@ $('refresh-data').addEventListener('click', async event => {
     const followToday = selected === today;
     today = date;
     whatsappAvailable = true;
-    await Promise.all([selectDay(followToday ? today : selected), refreshWhatsApp()]);
-    if ($('sync').dataset.state === 'ready') notify('Ventas actualizadas.');
+    void refreshWhatsApp();
+    const refreshed = await selectDay(followToday ? today : selected, { refresh: true });
+    if (refreshed) notify('Ventas actualizadas.');
   } finally {
     button.disabled = false;
     button.removeAttribute('aria-busy');
@@ -569,6 +587,8 @@ for (const dialog of document.querySelectorAll('dialog')) {
 }
 
 $('new-sale').addEventListener('click', () => {
+  if ($('sale-dialog').open || saleForm.dataset.busy === 'true') return;
+  setBusy(saleForm, false);
   saleForm.reset();
   pending.delete(saleForm);
   const now = limaNow();
@@ -789,11 +809,12 @@ function observeConfirmedSales(day) {
 async function refreshConfirmedSales() {
   if (saleRefreshBusy || !soundEnabled || !whatsappLinked || document.hidden || filePreview) return;
   saleRefreshBusy = true;
+  const version = loadVersion;
   try {
     const date = limaNow().date;
     const day = await api('?date=' + date);
     observeConfirmedSales(day);
-    if (selected === date && loaded?.date === date && !document.querySelector('dialog[open]') && !document.hidden) {
+    if (version === loadVersion && selected === date && loaded?.date === date && !document.querySelector('dialog[open]') && !document.hidden) {
       loaded = day;
       daily = new Map(day.daily.map(totals => [totals.date, totals]));
       renderSummary(day);
@@ -1011,7 +1032,7 @@ navigator.serviceWorker?.addEventListener('message', event => {
   if (event.data?.type === 'sale') {
     // New workers already coordinated the tone; keep support for old workers.
     if (!Object.hasOwn(event.data, 'soundHandled')) playSaleOnce(event.data.id);
-    if (!document.hidden) void selectDay(selected);
+    if (!document.hidden) void selectDay(selected, { refresh: true });
   }
   if (event.data?.type === 'sale' || event.data?.type === 'review') void refreshReviews();
 });
