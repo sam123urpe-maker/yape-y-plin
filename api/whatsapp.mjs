@@ -3,6 +3,7 @@ import { readWhatsAppControl, writeWhatsAppMode, writeWhatsAppHeartbeat } from '
 import { confirmPaymentReview, dismissPaymentReview, dismissedPaymentReviews, listPendingReviews, markCourseSent, pendingCourseDeliveries, queuePaymentReview, recordManualCourse, validReceipt, validReviewCents, validReviewCourse, validReviewId } from '../lib/reviews.mjs';
 import { checkReceipt } from '../lib/receipt-check.mjs';
 import { managePush, pushKeys, sendReviewNotice } from '../lib/push.mjs';
+import { nodosLedger, validNodosMode, validNodosCommand } from '../lib/nodos.mjs';
 
 const lifetime = 30 * 86400;
 const digest = value => createHash('sha256').update(value).digest();
@@ -13,7 +14,7 @@ const reply = (data, status = 200, headers = {}) => Response.json(data, {
 });
 
 export function whatsappApi(store = {
-  readWhatsAppControl, writeWhatsAppMode, writeWhatsAppHeartbeat,
+  readWhatsAppControl, writeWhatsAppMode, writeWhatsAppHeartbeat, nodosLedger,
   confirmPaymentReview, dismissPaymentReview, dismissedPaymentReviews, listPendingReviews, markCourseSent, pendingCourseDeliveries, queuePaymentReview, recordManualCourse, sendReviewNotice,
 }) {
   return {
@@ -36,12 +37,13 @@ export function whatsappApi(store = {
           return reply({ desired, applied, connected: connected && Date.now() - Date.parse(heartbeat) < 65_000 });
         }
         if (req.method === 'GET' && action === 'reviews') return reply({ pending: await store.listPendingReviews() });
+        if (req.method === 'GET' && action === 'nodos') return reply(await store.nodosLedger.overview());
         if (req.method !== 'POST') return reply({ error: 'Método no permitido.' }, 405);
         if (req.headers.get('sec-fetch-site') === 'cross-site' || !req.headers.get('content-type')?.startsWith('application/json')) {
           return reply({ error: 'Solicitud no válida.' }, 400);
         }
         const raw = await req.text();
-        if (raw.length > 4096) return reply({ error: 'Solicitud demasiado grande.' }, 413);
+        if (raw.length > (action === 'sync' ? 65536 : 4096)) return reply({ error: 'Solicitud demasiado grande.' }, 413);
         const body = JSON.parse(raw);
         if (login) {
           if (typeof body?.code !== 'string' || !equal(body.code, secret)) return reply({ error: 'El código es incorrecto.' }, 401);
@@ -50,11 +52,21 @@ export function whatsappApi(store = {
           return reply({ ok: true }, 200, { 'Set-Cookie': session + (url.protocol === 'https:' || process.env.VERCEL ? '; Secure' : '') });
         }
         if (action === 'sync' && typeof body?.applied === 'boolean' && typeof body.connected === 'boolean') {
+          const business = body.business ? await store.nodosLedger.sync(body.business) : undefined;
           await store.writeWhatsAppHeartbeat(body.applied, body.connected);
           const { desired } = await store.readWhatsAppControl();
-          const deliveries = body.connected && body.courseDelivery === true ? await store.pendingCourseDeliveries() : undefined;
-          const discarded = body.reviewDismissals === true ? await store.dismissedPaymentReviews() : undefined;
-          return reply({ desired, deliveries, discarded });
+          const coursesActive = !business || business.desiredMode === 'courses' && body.business.appliedMode === 'courses';
+          const deliveries = coursesActive && body.connected && body.courseDelivery === true ? await store.pendingCourseDeliveries() : undefined;
+          const discarded = coursesActive && body.reviewDismissals === true ? await store.dismissedPaymentReviews() : undefined;
+          return reply({ desired, deliveries, discarded, ...(business ? { business } : {}) });
+        }
+        if (action === 'nodos-mode' && validNodosMode(body?.mode)) {
+          await store.nodosLedger.mode(body.mode);
+          return reply({ ok: true });
+        }
+        if (action === 'nodos-command' && validNodosCommand(body)) {
+          if (!await store.nodosLedger.command(body)) return reply({ error: 'Cliente no disponible.' }, 404);
+          return reply({ ok: true });
         }
         if (action === 'course-sent' && validReviewId(body?.id)) {
           await store.markCourseSent(body.id);
@@ -116,7 +128,7 @@ export function whatsappApi(store = {
         }
         return reply({ error: 'Solicitud no válida.' }, 400);
       } catch (error) {
-        if (error instanceof SyntaxError) return reply({ error: 'Solicitud no válida.' }, 400);
+        if (error instanceof SyntaxError || error instanceof TypeError) return reply({ error: 'Solicitud no válida.' }, 400);
         console.error('DigPro WhatsApp', error.response?.status || error.code || error.name);
         return reply({ error: 'No se pudo completar la operación de WhatsApp.' }, 502);
       }

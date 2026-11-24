@@ -13,6 +13,9 @@ const files = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/app.css': ['app.css', 'text/css; charset=utf-8'],
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
+  '/nodos.html': ['nodos.html', 'text/html; charset=utf-8'],
+  '/nodos.js': ['nodos.js', 'text/javascript; charset=utf-8'],
+  '/nodos.css': ['nodos.css', 'text/css; charset=utf-8'],
   '/sw.js': ['sw.js', 'text/javascript; charset=utf-8'],
   '/manifest.webmanifest': ['manifest.webmanifest', 'application/manifest+json; charset=utf-8'],
   '/assets/caja.svg': ['assets/caja.svg', 'image/svg+xml'],
@@ -39,7 +42,7 @@ const server = createServer(async (req, res) => {
       let length = 0;
       for await (const chunk of req) {
         length += chunk.length;
-        if (length > 4096) {
+        if (length > (url.pathname === '/api/whatsapp' && url.searchParams.get('action') === 'sync' ? 65536 : 4096)) {
           res.writeHead(413).end();
           return;
         }
