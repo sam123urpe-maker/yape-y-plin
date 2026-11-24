@@ -3,7 +3,7 @@
   const $ = id => document.getElementById(id);
   const stages = { inquiry: 'Consulta inicial', collecting: 'Datos por completar', manual: 'Atención manual', legacy: 'Cliente de Cursos · atención humana', opted_out: 'No contactar', review: 'Revisión necesaria', ready: 'Listo para revisar y preparar', reviewed: 'Revisado por el equipo' };
   const missing = { confirmation: 'autorización de propuesta', name: 'nombre del negocio', logo: 'logo en imagen', colors: 'colores o delegación al equipo' };
-  let clients = [], selected, busy = false, pending = [];
+  let clients = [], selected, busy = false, pending = [], results = [];
   async function request(action = 'nodos', data) {
     const result = await fetch('/api/whatsapp' + (action ? '?action=' + action : ''), { credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(18000),
       ...(data ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) } : {}) });
@@ -40,14 +40,15 @@
     $('resume-chat').disabled = client.optedOut || !client.paused;
     $('pause-chat').disabled = client.paused;
     $('copy-folder').disabled = !client.assets.length;
-    $('command-status').textContent = pending.some(command => command.clientId === client.id) ? 'Hay una orden pendiente de aplicar en el agente.' : '';
+    const lastResult = results.find(result => result.clientId === client.id);
+    $('command-status').textContent = pending.some(command => command.clientId === client.id) ? 'Hay una orden pendiente de aplicar en el agente.' : lastResult?.ok === false ? lastResult.error : '';
     if (open && !$('detail').open) $('detail').showModal();
   }
   async function refresh(silent = false) {
     if (busy) return; busy = true; $('refresh').disabled = true; $('refresh').dataset.loading = 'true';
     try {
       const [data, control] = await Promise.all([request(), request(null)]);
-      clients = data.clients; pending = data.commands; $('login').hidden = true; $('workspace').hidden = false;
+      clients = data.clients; pending = data.commands; results = data.results || []; $('login').hidden = true; $('workspace').hidden = false;
       const active = data.control.appliedMode === 'nodos' && control.applied && control.connected;
       document.querySelector('.agent-card').dataset.active = String(active);
       $('agent-state').textContent = active ? 'NodoS activo' : data.control.desiredMode === 'nodos' && control.desired ? 'Activación solicitada' : 'Agente pausado';
@@ -62,7 +63,7 @@
   }
   async function changeMode(mode) {
     $('activate').disabled = $('pause').disabled = true;
-    try { await request('nodos-mode', { mode }); if (mode === 'nodos') await request('mode', { enabled: true }); notice('Cambio solicitado. El agente lo aplicará en unos segundos.'); }
+    try { await request('nodos-mode', { mode }); await request('mode', { enabled: mode === 'nodos' }); notice('Cambio solicitado. El agente lo aplicará en unos segundos.'); }
     catch (error) { notice(error.message); }
     finally { $('activate').disabled = $('pause').disabled = false; }
     setTimeout(() => refresh(), 1500);
